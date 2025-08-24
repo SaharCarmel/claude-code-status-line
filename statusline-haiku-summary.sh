@@ -33,9 +33,75 @@ fi
 
 # Refresh cache if needed
 if [[ "$refresh_cache" == "true" ]]; then
-    # Change to current directory and run claude command
-    if cd "$current_dir" 2>/dev/null; then
-        haiku_output=$(echo "Summarize what I'm working on in this project in 3-6 words" | claude --model haiku -p 2>/dev/null)
+    # Change to dedicated summary directory to avoid polluting project history
+    summary_dir="$HOME/.claude/statusline-summaries"
+    mkdir -p "$summary_dir"
+    if cd "$summary_dir" 2>/dev/null; then
+        # Get Claude's recent outputs from session files
+        claude_context=""
+        
+        # Build the project sessions path
+        project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
+        
+        if [[ -d "$project_sessions_dir" ]]; then
+            # Get the most recent session files (last 2 sessions)
+            recent_sessions=$(ls -t "$project_sessions_dir"/*.jsonl 2>/dev/null | head -2)
+            
+            if [[ -n "$recent_sessions" ]]; then
+                # Extract both user inputs and Claude's responses from recent sessions
+                conversation_context=""
+                for session_file in $recent_sessions; do
+                    # Get recent conversation pairs (user + assistant) - last 4 exchanges
+                    session_data=$(jq -r '
+                        select(.type == "user" or (.type == "assistant" and .message.content != null)) |
+                        if .type == "user" then
+                            "Human: " + (.message.content | if type == "string" then . else .[0].text // "..." end)
+                        elif .type == "assistant" then
+                            "Claude: " + (.message.content[] | select(.type == "text") | .text)
+                        else
+                            empty
+                        end
+                    ' "$session_file" 2>/dev/null | tail -8 | head -c 400)
+                    
+                    if [[ -n "$session_data" ]]; then
+                        conversation_context="$conversation_context $session_data"
+                    fi
+                done
+                
+                if [[ -n "$conversation_context" ]]; then
+                    claude_context="Recent conversation: $conversation_context"
+                fi
+            fi
+        fi
+        
+        # Create prompt based on actual conversation
+        if [[ -n "$claude_context" ]]; then
+            project_prompt="$claude_context
+
+Based on the recent conversation between human and Claude Code, summarize in exactly 5 words what Claude has been working on or helping with."
+        else
+            # Fallback - check for recent file activity as secondary indicator
+            if cd "$current_dir" 2>/dev/null; then
+                recent_files=$(find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.md" -mmin -30 2>/dev/null | head -3 | sed 's|^\./||' | tr '\n' ', ')
+                current_branch=$(git branch --show-current 2>/dev/null)
+                
+                if [[ -n "$recent_files" ]]; then
+                    project_prompt="Project: $(basename "$current_dir"). Branch: $current_branch. Recent files: ${recent_files%,}
+
+Based on the project context and recent activity, summarize in exactly 5 words what development work is happening."
+                else
+                    project_prompt="Working in project: $(basename "$current_dir") on branch: $current_branch
+
+Based on this context, summarize in exactly 5 words what kind of development work this involves."
+                fi
+            else
+                project_prompt="Development project in progress.
+
+Summarize in exactly 5 words what kind of coding work this likely involves."
+            fi
+        fi
+        
+        haiku_output=$(echo "$project_prompt" | claude --model haiku -p 2>/dev/null)
         if [[ $? -eq 0 && -n "$haiku_output" ]]; then
             # Get first line and truncate to 50 characters
             haiku_summary=$(echo "$haiku_output" | head -n1 | cut -c1-50)
