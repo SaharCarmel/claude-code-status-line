@@ -6,6 +6,7 @@
 # Read JSON input from stdin
 input=$(cat)
 current_dir=$(echo "$input" | jq -r '.workspace.current_dir')
+session_id=$(echo "$input" | jq -r '.session_id // "unknown"')
 model=$(echo "$input" | jq -r '.model.display_name')
 total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
 total_duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
@@ -13,9 +14,9 @@ api_duration_ms=$(echo "$input" | jq -r '.cost.total_api_duration_ms // 0')
 lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
 lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 
-# Cache configuration
-cache_file="$HOME/.claude/haiku_summary_cache"
-cache_timestamp_file="$HOME/.claude/haiku_summary_timestamp"
+# Cache configuration - use session_id for isolation
+cache_file="$HOME/.claude/haiku_summary_cache_${session_id}"
+cache_timestamp_file="$HOME/.claude/haiku_summary_timestamp_${session_id}"
 cache_duration=30  # seconds
 
 # Check if we need to refresh the cache
@@ -44,32 +45,24 @@ if [[ "$refresh_cache" == "true" ]]; then
         project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
         
         if [[ -d "$project_sessions_dir" ]]; then
-            # Get the most recent session files (last 2 sessions)
-            recent_sessions=$(ls -t "$project_sessions_dir"/*.jsonl 2>/dev/null | head -2)
+            # Get the specific session file for this instance
+            current_session_file="$project_sessions_dir/${session_id}.jsonl"
             
-            if [[ -n "$recent_sessions" ]]; then
-                # Extract both user inputs and Claude's responses from recent sessions
-                conversation_context=""
-                for session_file in $recent_sessions; do
-                    # Get recent conversation pairs (user + assistant) - last 4 exchanges
-                    session_data=$(jq -r '
-                        select(.type == "user" or (.type == "assistant" and .message.content != null)) |
-                        if .type == "user" then
-                            "Human: " + (.message.content | if type == "string" then . else .[0].text // "..." end)
-                        elif .type == "assistant" then
-                            "Claude: " + (.message.content[] | select(.type == "text") | .text)
-                        else
-                            empty
-                        end
-                    ' "$session_file" 2>/dev/null | tail -8 | head -c 400)
-                    
-                    if [[ -n "$session_data" ]]; then
-                        conversation_context="$conversation_context $session_data"
-                    fi
-                done
+            if [[ -f "$current_session_file" ]]; then
+                # Extract both user inputs and Claude's responses from current session
+                session_data=$(jq -r '
+                    select(.type == "user" or (.type == "assistant" and .message.content != null)) |
+                    if .type == "user" then
+                        "Human: " + (.message.content | if type == "string" then . else .[0].text // "..." end)
+                    elif .type == "assistant" then
+                        "Claude: " + (.message.content[] | select(.type == "text") | .text)
+                    else
+                        empty
+                    end
+                ' "$current_session_file" 2>/dev/null | tail -8 | head -c 400)
                 
-                if [[ -n "$conversation_context" ]]; then
-                    claude_context="Recent conversation: $conversation_context"
+                if [[ -n "$session_data" ]]; then
+                    claude_context="Recent conversation: $session_data"
                 fi
             fi
         fi
@@ -161,9 +154,9 @@ if [[ -f "$cache_file" ]]; then
     haiku_summary=$(cat "$cache_file" 2>/dev/null)
 fi
 
-# Generate shortcuts detection (separate cache for performance)
-shortcuts_cache_file="$HOME/.claude/shortcuts_cache"
-shortcuts_timestamp_file="$HOME/.claude/shortcuts_timestamp"
+# Generate shortcuts detection (separate cache for performance, session-isolated)
+shortcuts_cache_file="$HOME/.claude/shortcuts_cache_${session_id}"
+shortcuts_timestamp_file="$HOME/.claude/shortcuts_timestamp_${session_id}"
 shortcuts_cache_duration=60  # Check every minute
 
 shortcuts_indicator=""
@@ -187,10 +180,10 @@ if [[ "$refresh_shortcuts" == "true" ]]; then
         project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
         
         if [[ -d "$project_sessions_dir" ]]; then
-            # Get the current/most recent session only
-            current_session=$(ls -t "$project_sessions_dir"/*.jsonl 2>/dev/null | head -1)
+            # Get the specific session file for this instance
+            current_session="$project_sessions_dir/${session_id}.jsonl"
             
-            if [[ -n "$current_session" ]]; then
+            if [[ -f "$current_session" ]]; then
                 # Get all messages, find last user input, then get everything after it
                 all_messages=$(jq -r '
                     select(.type == "user" or (.type == "assistant" and .message.content != null)) |

@@ -41,6 +41,7 @@ curl -sL https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/m
 - **Reads actual session history** from your Claude Code conversations
 - **Clean project history** - summaries run in isolation, won't pollute your `--resume` history
 - **Context-aware** - analyzes both human inputs and Claude responses
+- **Multi-instance ready** - works perfectly with multiple Claude Code sessions running simultaneously
 
 ### 🚨 Code Quality Detection
 Monitor Claude's implementation approach in real-time:
@@ -89,6 +90,7 @@ Monitor Claude's implementation approach in real-time:
 - Generates summaries using Claude Haiku model
 - Updates every 30 seconds with intelligent caching
 - Runs from dedicated `~/.claude/statusline-summaries/` to keep your project history clean
+- **Multi-instance isolation** - each Claude Code session gets its own status line data
 
 ## Requirements
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## [2025-08-24] - Multi-Instance Support & Session Isolation
+
+### Added
+- **Multi-Instance Compatibility**: Full support for running multiple Claude Code instances simultaneously
+- **Session-Isolated Caching**: Each instance maintains separate cache files using unique session IDs
+- **Per-Instance Context**: Each status line shows data specific to its own session and conversation
+
+### Changed
+- **Session Detection Logic**: Uses specific `session_id` instead of "most recent session" detection
+- **Cache File Naming**: Session-specific cache files prevent cross-instance conflicts
+- **Context Analysis**: Each instance analyzes only its own conversation thread
+
+### Fixed
+- **Multi-Instance Conflicts**: Eliminated shared state issues when multiple instances run together
+- **Context Confusion**: Each instance now shows accurate summaries for its own work
+- **Cache Collisions**: Session-isolated caching prevents instances from overwriting each other's data
+
+### Technical Details
+- Summary cache: `haiku_summary_cache_${session_id}`
+- Shortcuts cache: `shortcuts_cache_${session_id}`  
+- Session file targeting: `${session_id}.jsonl`
+- Extracts `session_id` from Claude Code JSON input for unique identification
+
 ## [2025-08-24] - Code Quality Detection System
 
 ### Added
