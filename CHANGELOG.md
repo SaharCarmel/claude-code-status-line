@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2025-08-24
+
+### Added
+- Last updated timestamp showing actual cache refresh time (⏰ HH:MM format)
+
+### Changed
+- Increased cache duration from 30 seconds to 5 minutes to reduce unnecessary API calls
+- Improved change detection to only refresh when conversation actually changes
+
+### Fixed
+- Eliminated constant cache refreshing when no conversation activity occurs
+- Removed confusing "fresh"/"age" display that was stuck showing "fresh"
+
 ## [1.3.0] - 2025-08-24
 
 ### Added

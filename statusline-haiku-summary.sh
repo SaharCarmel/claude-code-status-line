@@ -17,17 +17,32 @@ lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 # Cache configuration - use session_id for isolation
 cache_file="$HOME/.claude/haiku_summary_cache_${session_id}"
 cache_timestamp_file="$HOME/.claude/haiku_summary_timestamp_${session_id}"
-cache_duration=30  # seconds
+cache_hash_file="$HOME/.claude/haiku_summary_hash_${session_id}"
+cache_duration=300  # seconds (5 minutes)
 
-# Check if we need to refresh the cache
+# Check if we need to refresh the cache based on conversation changes
 refresh_cache=false
 current_time=$(date +%s)
 
-if [[ ! -f "$cache_timestamp_file" ]] || [[ ! -f "$cache_file" ]]; then
+# Get current conversation hash to detect changes
+project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
+current_session_file="$project_sessions_dir/${session_id}.jsonl"
+current_conversation_hash=""
+
+if [[ -f "$current_session_file" ]]; then
+    # Create hash of recent conversation (last 10 entries)
+    current_conversation_hash=$(tail -10 "$current_session_file" | shasum -a 256 | cut -d' ' -f1)
+fi
+
+# Check if cache needs refresh
+if [[ ! -f "$cache_timestamp_file" ]] || [[ ! -f "$cache_file" ]] || [[ ! -f "$cache_hash_file" ]]; then
     refresh_cache=true
 else
     last_update=$(cat "$cache_timestamp_file" 2>/dev/null || echo "0")
-    if (( current_time - last_update > cache_duration )); then
+    last_hash=$(cat "$cache_hash_file" 2>/dev/null || echo "")
+    
+    # Refresh if conversation changed OR if it's been too long since last check
+    if [[ "$current_conversation_hash" != "$last_hash" ]] || (( current_time - last_update > cache_duration )); then
         refresh_cache=true
     fi
 fi
@@ -144,6 +159,7 @@ Output ONLY 5 words like \"Working on development project tasks\"
             haiku_summary=$(echo "$haiku_output" | head -n1 | cut -c1-50)
             echo "$haiku_summary" > "$cache_file"
             echo "$current_time" > "$cache_timestamp_file"
+            echo "$current_conversation_hash" > "$cache_hash_file"
         fi
     fi
 fi
@@ -157,16 +173,21 @@ fi
 # Generate shortcuts detection (separate cache for performance, session-isolated)
 shortcuts_cache_file="$HOME/.claude/shortcuts_cache_${session_id}"
 shortcuts_timestamp_file="$HOME/.claude/shortcuts_timestamp_${session_id}"
-shortcuts_cache_duration=60  # Check every minute
+shortcuts_hash_file="$HOME/.claude/shortcuts_hash_${session_id}"
+shortcuts_cache_duration=300  # Check every 5 minutes
 
 shortcuts_indicator=""
 refresh_shortcuts=false
 
-if [[ ! -f "$shortcuts_timestamp_file" ]] || [[ ! -f "$shortcuts_cache_file" ]]; then
+# Check if shortcuts cache needs refresh (same hash logic as summary)
+if [[ ! -f "$shortcuts_timestamp_file" ]] || [[ ! -f "$shortcuts_cache_file" ]] || [[ ! -f "$shortcuts_hash_file" ]]; then
     refresh_shortcuts=true
 else
     last_shortcuts_update=$(cat "$shortcuts_timestamp_file" 2>/dev/null || echo "0")
-    if (( current_time - last_shortcuts_update > shortcuts_cache_duration )); then
+    last_shortcuts_hash=$(cat "$shortcuts_hash_file" 2>/dev/null || echo "")
+    
+    # Refresh if conversation changed OR if it's been too long since last check
+    if [[ "$current_conversation_hash" != "$last_shortcuts_hash" ]] || (( current_time - last_shortcuts_update > shortcuts_cache_duration )); then
         refresh_shortcuts=true
     fi
 fi
@@ -255,6 +276,7 @@ Choose the most appropriate indicator based on the conversation. Output the EXAC
                 if [[ -n "$shortcuts_indicator" ]]; then
                     echo "$shortcuts_indicator" > "$shortcuts_cache_file"
                     echo "$current_time" > "$shortcuts_timestamp_file"
+                    echo "$current_conversation_hash" > "$shortcuts_hash_file"
                 fi
             fi
         fi
@@ -324,6 +346,16 @@ fi
 # Add haiku summary if available
 if [[ -n "$haiku_summary" ]]; then
     status_line="${status_line} | \033[2;35m📋 ${haiku_summary}\033[0m"
+fi
+
+# Add last updated timestamp
+if [[ -f "$cache_timestamp_file" ]]; then
+    last_update_time=$(cat "$cache_timestamp_file" 2>/dev/null || echo "0")
+    if [[ "$last_update_time" != "0" ]]; then
+        # Format as readable time
+        formatted_time=$(date -r "$last_update_time" "+%H:%M" 2>/dev/null || echo "??:??")
+        status_line="${status_line} | \033[90m⏰ ${formatted_time}\033[0m"
+    fi
 fi
 
 echo -e "$status_line"
