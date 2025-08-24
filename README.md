@@ -48,7 +48,7 @@ The status line displays:
 ## Example
 
 ```
-➜ draft-driver-100x git:(main) ✗ 🤖 Sonnet 3.5 | 💰 $2.45 session | ◯ IDE | 🔥 $12.30/hr | 📝 15+/3- | 🧠 25,432 (12%) | Fixing status line history bug
+➜ my-project git:(feature-branch) ✗ 🤖 Sonnet 4 | 💰 $3.46 session | ◯ IDE | 🔥 $6.92/hr | 📝 319+/215- | 🧠 86,271 (43%) | Implementing new feature with API
 ```
 
 ## How It Works
