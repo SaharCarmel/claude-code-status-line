@@ -18,6 +18,8 @@ Enhanced status line for Claude Code that shows intelligent 5-word summaries bas
 - 📋 **Smart 5-word summary of what Claude is actually working on**
 
 [![GitHub stars](https://img.shields.io/github/stars/SaharCarmel/claude-code-status-line?style=flat-square)](https://github.com/SaharCarmel/claude-code-status-line/stargazers)
+[![Latest Release](https://img.shields.io/badge/version-v1.3.0-blue?style=flat-square)](https://github.com/SaharCarmel/claude-code-status-line/releases)
+[![Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-orange?style=flat-square)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple?style=flat-square&logo=anthropic)](https://claude.ai/code)
 
@@ -91,6 +93,20 @@ Monitor Claude's implementation approach in real-time:
 - Updates every 30 seconds with intelligent caching
 - Runs from dedicated `~/.claude/statusline-summaries/` to keep your project history clean
 - **Multi-instance isolation** - each Claude Code session gets its own status line data
+
+## 📝 What's New
+
+**Latest: v1.3.0** - Multi-Instance Support & Session Isolation
+- ✅ Run multiple Claude Code sessions simultaneously without conflicts
+- ✅ Each instance gets its own status line data and summaries
+- ✅ Perfect isolation between different projects
+
+**Recent Updates:**
+- 🚨 **v1.2.0** - Real-time code quality detection system
+- 🎯 **v1.1.0** - Enhanced prompt engineering for better summaries  
+- 🚀 **v1.0.0** - Initial release with conversation-based summaries
+
+➡️ **[View Full Changelog](CHANGELOG.md)** for complete version history
 
 ## Requirements
 
