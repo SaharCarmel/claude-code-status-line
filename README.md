@@ -33,9 +33,10 @@ brew install claude-code-status-line
 
 **Benefits:**
 - ✅ Automatic dependency management (`jq`, `node`)
-- ✅ Easy updates: `brew upgrade claude-code-status-line`
+- ✅ Easy updates: `brew upgrade claude-code-status-line` 
 - ✅ Clean uninstall: `brew uninstall claude-code-status-line`
 - ✅ Version tracking and rollbacks
+- 🤖 **Auto-updating formula** - new releases automatically update Homebrew!
 
 ### 📥 One-Line Install (Alternative)
 ```bash
@@ -122,9 +123,20 @@ Monitor Claude's implementation approach in real-time:
 
 ➡️ **[View Full Changelog](CHANGELOG.md)** for complete version history
 
+## 🍺 Homebrew Distribution
+
+This project includes professional package management through Homebrew:
+
+- **Homebrew Tap**: [`saharcarmel/homebrew-claude`](https://github.com/SaharCarmel/homebrew-claude)
+- **Automated Updates**: GitHub Actions automatically update the Homebrew formula when new releases are created
+- **Professional CI/CD**: Users get updates immediately after releases through `brew upgrade`
+
+### For Developers
+The repository includes automated Homebrew formula updates. See [`SETUP-AUTOMATION.md`](SETUP-AUTOMATION.md) for details on how the CI/CD pipeline works.
+
 ## Requirements
 
 - Claude Code CLI
-- `jq` (for JSON parsing)
-- `bun` and `ccusage` (for token tracking)
+- `jq` (for JSON parsing) - *auto-installed with Homebrew*
+- `bun` and `ccusage` (for token tracking)  
 - `bc` (for calculations)
