@@ -1,0 +1,26 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew formula
+        uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          # Required, custom GitHub access token with only the 'public_repo' scope enabled
+          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          # Optional, defaults to homebrew/core
+          tap: SaharCarmel/homebrew-claude
+          # Formula name
+          formula: claude-code-status-line
+          # Optional, will be determined automatically
+          tag: ${{ github.ref }}
+          # Optional, will be determined automatically  
+          revision: ${{ github.sha }}
+        env:
+          # Optional, defaults to homebrew-${{ github.repository_owner }}
+          HOMEBREW_GITHUB_REPOSITORY: SaharCarmel/homebrew-claude

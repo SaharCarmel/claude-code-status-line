@@ -1,0 +1,47 @@
+name: Update Homebrew Formula (Simple)
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: SaharCarmel/homebrew-claude
+          token: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Get release info
+        id: release
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+          
+          # Download and get SHA256
+          curl -sL "https://github.com/SaharCarmel/claude-code-status-line/archive/refs/tags/$TAG_NAME.tar.gz" > release.tar.gz
+          SHA256=$(sha256sum release.tar.gz | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Update formula
+        run: |
+          cd homebrew-tap/Formula
+          sed -i "s/version \".*\"/version \"${{ steps.release.outputs.version }}\"/" claude-code-status-line.rb
+          sed -i "s/refs\/tags\/v[0-9.]*/refs\/tags\/${{ steps.release.outputs.tag }}/" claude-code-status-line.rb  
+          sed -i "s/sha256 \".*\"/sha256 \"${{ steps.release.outputs.sha256 }}\"/" claude-code-status-line.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/claude-code-status-line.rb
+          git commit -m "chore: update claude-code-status-line to ${{ steps.release.outputs.tag }}"
+          git push
