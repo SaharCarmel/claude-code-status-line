@@ -2,6 +2,20 @@
 
 Enhanced status line for Claude Code that shows intelligent 5-word summaries based on your actual conversation history.
 
+## 🎯 See It In Action
+
+```
+➜ my-project git:(feature-branch) ✗ 🤖 Sonnet 4 | 💰 $3.46 session | ◯ IDE | 🔥 $6.92/hr | 📝 319+/215- | 🧠 86,271 (43%) | Implementing new feature with API
+```
+
+**What you get:**
+- 🏠 Project name and git status
+- 🤖 Current AI model  
+- 💰 Session costs and performance
+- 📝 Code changes tracking
+- 🧠 Context window usage
+- ✨ **Smart 5-word summary of what Claude is actually working on**
+
 [![GitHub stars](https://img.shields.io/github/stars/SaharCarmel/claude-code-status-line?style=flat-square)](https://github.com/SaharCarmel/claude-code-status-line/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple?style=flat-square&logo=anthropic)](https://claude.ai/code)
@@ -59,22 +73,6 @@ curl -sL https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/m
 
 4. Restart Claude Code to see the enhanced status line!
 
-## What It Shows
-
-The status line displays:
-- 🏠 Project name and git branch (with dirty indicator ✗)
-- 🤖 Current model
-- 💰 Session cost
-- 🔥 Cost per hour
-- 📝 Lines added/removed
-- 🧠 Context usage (tokens and percentage)
-- ✨ **5-word summary of what Claude has been working on**
-
-## Example
-
-```
-➜ my-project git:(feature-branch) ✗ 🤖 Sonnet 4 | 💰 $3.46 session | ◯ IDE | 🔥 $6.92/hr | 📝 319+/215- | 🧠 86,271 (43%) | Implementing new feature with API
-```
 
 ## How It Works
 
