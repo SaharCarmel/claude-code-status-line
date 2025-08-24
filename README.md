@@ -1,58 +1,63 @@
-# Claude Code Status Line with Haiku Summary
+# Claude Code Status Line
 
-A custom status line for Claude Code that displays all standard information plus AI-generated project summaries.
+Enhanced status line for Claude Code that shows intelligent 5-word summaries based on your actual conversation history.
 
 ## Features
 
-- **Complete status info**: directory, git branch, model, costs, IDE status, context window
-- **Real token counts**: integrates with `ccusage` for accurate 🧠 usage tracking  
-- **AI summaries**: shows what you're working on (refreshed every 30 seconds)
-- **Color coded**: matches original Claude Code styling
+- **Smart Context**: Reads your actual Claude Code conversation history instead of guessing from git status
+- **Real Summaries**: Shows what Claude has been working on based on recent human inputs and Claude responses
+- **Clean History**: Runs summaries from isolated directory to avoid polluting your project's `--resume` history
+- **Rich Status Line**: Displays project info, costs, git status, and intelligent summary
 
-## Display Format
+## Installation
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/SaharCarmel/claude-code-status-line.git
+   cd claude-code-status-line
+   ```
+
+2. Run the install script:
+   ```bash
+   ./install.sh
+   ```
+
+3. Add the status line configuration to your `~/.claude/settings.json`:
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "bash ~/.claude/statusline-haiku-summary.sh"
+     }
+   }
+   ```
+
+4. Restart Claude Code to see the enhanced status line!
+
+## What It Shows
+
+The status line displays:
+- 🏠 Project name and git branch (with dirty indicator ✗)
+- 🤖 Current model
+- 💰 Session cost
+- 🔥 Cost per hour
+- 📝 Lines added/removed
+- 🧠 Context usage (tokens and percentage)
+- ✨ **5-word summary of what Claude has been working on**
+
+## Example
 
 ```
-➜ project-name git:(main) 🤖 Model | 💰 $3.65 session | ◯ IDE | 🔥 $7.33/hr | 📝 28+/6- | 🧠 81,102 (41%) | Working on legal document analysis...
+➜ draft-driver-100x git:(main) ✗ 🤖 Sonnet 3.5 | 💰 $2.45 session | ◯ IDE | 🔥 $12.30/hr | 📝 15+/3- | 🧠 25,432 (12%) | Fixing status line history bug
 ```
 
-## Setup
+## How It Works
 
-### 1. Install ccusage (required for accurate token counts)
-
-```bash
-bun add -g ccusage
-```
-
-### 2. Install the status line script
-
-```bash
-# Download the script
-curl -o ~/.claude/statusline-haiku-summary.sh https://raw.githubusercontent.com/[USERNAME]/claude-code-status-line/main/statusline-haiku-summary.sh
-
-# Make it executable
-chmod +x ~/.claude/statusline-haiku-summary.sh
-```
-
-### 3. Update your Claude Code settings
-
-Add this to your `~/.claude/settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/statusline-haiku-summary.sh"
-  }
-}
-```
-
-## How it works
-
-- Parses JSON input from Claude Code with session info
-- Calls `ccusage` internally for real token usage data
-- Runs `claude --model haiku -p` every 30 seconds for project summaries
-- Caches haiku responses to avoid excessive API calls
-- Displays everything in a single colored status line
+- Reads your Claude Code session files from `~/.claude/projects/`
+- Extracts recent conversation history (both human and Claude messages)
+- Generates summaries using Claude Haiku model
+- Updates every 30 seconds with intelligent caching
+- Runs from dedicated `~/.claude/statusline-summaries/` to keep your project history clean
 
 ## Requirements
 
@@ -60,15 +65,3 @@ Add this to your `~/.claude/settings.json`:
 - `jq` (for JSON parsing)
 - `bun` and `ccusage` (for token tracking)
 - `bc` (for calculations)
-
-## Customization
-
-You can adjust these settings in the script:
-
-- `cache_duration=30` - How often to refresh haiku summary (seconds)
-- Haiku prompt: "Summarize what I'm working on in this project in 3-6 words"
-- Color codes for different status elements
-
-## License
-
-MIT License - feel free to modify and share!
