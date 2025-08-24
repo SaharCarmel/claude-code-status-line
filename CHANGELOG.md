@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2025-08-24
+
+### Added
+- 🤖 Automatic Homebrew formula updates via GitHub Actions
+- Professional CI/CD workflow for package management
+- MIT License file for proper open source distribution
+
+### Changed
+- Enhanced prompt with 10 concrete examples to prevent partial text extraction
+- Improved text extraction with grep filtering for explanatory phrases
+- Extended cache duration from 30 seconds to 5 minutes to reduce API calls
+
+### Fixed
+- Eliminated "Based on conversation about extracting" partial text issues
+- Removed confusing "fresh"/"age" display that was stuck showing "fresh"
+- Added awk extraction to ensure exactly 5 words in summaries
+
 ## [1.3.2] - 2025-08-24
 
 ### Added
