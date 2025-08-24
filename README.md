@@ -2,6 +2,18 @@
 
 Enhanced status line for Claude Code that shows intelligent 5-word summaries based on your actual conversation history.
 
+[![GitHub stars](https://img.shields.io/github/stars/SaharCarmel/claude-code-status-line?style=flat-square)](https://github.com/SaharCarmel/claude-code-status-line/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple?style=flat-square&logo=anthropic)](https://claude.ai/code)
+
+## 🚀 Quick Install
+
+```bash
+curl -sL https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/main/install.sh | bash
+```
+
+[![One-Line Install](https://img.shields.io/badge/Install-One%20Line-brightgreen?style=for-the-badge&logo=terminal&logoColor=white)](https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/main/install.sh)
+
 ## 🚀 Major Updates
 
 ### Latest: Enhanced Prompt Engineering (Aug 2025)
