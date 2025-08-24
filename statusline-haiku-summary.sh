@@ -76,9 +76,31 @@ if [[ "$refresh_cache" == "true" ]]; then
         
         # Create prompt based on actual conversation
         if [[ -n "$claude_context" ]]; then
-            project_prompt="$claude_context
+            project_prompt="<conversation_context>
+$claude_context
+</conversation_context>
 
-Based on the recent conversation between human and Claude Code, summarize in exactly 5 words what Claude has been working on or helping with."
+<task>
+You are a progress tracker for software development sessions. Your job is to create a concise status summary for a developer.
+
+Analyze the recent conversation between the human developer and Claude Code assistant. Focus on:
+- What specific task or problem Claude has been helping with
+- What actions Claude has taken (coding, debugging, analysis, etc.)
+- Current progress or state
+
+Output ONLY a 5-word phrase that captures what Claude has been working on. The phrase should:
+- Be actionable and specific (not vague)
+- Help the user track their development progress  
+- Focus on the main activity, not side discussions
+
+Examples of good 5-word summaries:
+- \"Fixing authentication database connection bug\"
+- \"Implementing user registration API endpoints\"
+- \"Debugging React component rendering issues\"
+- \"Setting up deployment pipeline configuration\"
+
+Remember: Output EXACTLY 5 words, nothing more, nothing less.
+</task>"
         else
             # Fallback - check for recent file activity as secondary indicator
             if cd "$current_dir" 2>/dev/null; then
@@ -86,18 +108,40 @@ Based on the recent conversation between human and Claude Code, summarize in exa
                 current_branch=$(git branch --show-current 2>/dev/null)
                 
                 if [[ -n "$recent_files" ]]; then
-                    project_prompt="Project: $(basename "$current_dir"). Branch: $current_branch. Recent files: ${recent_files%,}
+                    project_prompt="<context>
+Project: $(basename "$current_dir")
+Branch: $current_branch  
+Recent files: ${recent_files%,}
+</context>
 
-Based on the project context and recent activity, summarize in exactly 5 words what development work is happening."
+<task>
+You are a development progress tracker. Based on the project name, git branch, and recently modified files, create a 5-word summary of what development work is likely happening.
+
+Output ONLY 5 words that describe the current development activity. Be specific and actionable.
+
+Examples:
+- \"Building user authentication system components\"
+- \"Refactoring database connection handling logic\" 
+- \"Testing API endpoint response validation\"
+</task>"
                 else
-                    project_prompt="Working in project: $(basename "$current_dir") on branch: $current_branch
+                    project_prompt="<context>
+Project: $(basename "$current_dir")
+Branch: $current_branch
+</context>
 
-Based on this context, summarize in exactly 5 words what kind of development work this involves."
+<task>
+Based on the project name and git branch, create a 5-word summary of what development work is likely happening.
+
+Output ONLY 5 words that describe the development activity.
+</task>"
                 fi
             else
-                project_prompt="Development project in progress.
+                project_prompt="<task>
+Create a generic 5-word summary for active development work.
 
-Summarize in exactly 5 words what kind of coding work this likely involves."
+Output ONLY 5 words like \"Working on development project tasks\"
+</task>"
             fi
         fi
         

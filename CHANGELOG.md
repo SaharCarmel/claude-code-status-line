@@ -1,5 +1,23 @@
 # Changelog
 
+## [2025-08-24] - Enhanced Prompt Engineering for Better Summaries
+
+### Added
+- **Enhanced Prompt Engineering**: Implemented Anthropic's latest best practices for Claude prompt engineering
+- **XML-style Structure**: Uses `<conversation_context>` and `<task>` tags for better instruction clarity
+- **Role-based Prompting**: Assigns Claude a specific role as "progress tracker for software development sessions"
+- **Concrete Examples**: Provides specific examples of good 5-word summaries
+- **Clear Success Criteria**: Explicit instructions for actionable, specific, progress-focused summaries
+
+### Fixed
+- **Truncated Summaries**: Resolved issue where summaries were being cut off (e.g. "I need permission to create the file. Once you gra")
+- **Vague Output**: Improved summary quality by being more explicit about desired output format
+
+### Changed
+- **Prompt Structure**: Complete rewrite of summary generation prompts using structured XML tags
+- **Output Requirements**: More explicit "Output ONLY a 5-word phrase" and "EXACTLY 5 words, nothing more, nothing less"
+- **Context Analysis**: Better focus on specific tasks, actions taken, and current progress
+
 ## [2025-08-24] - Status Line Session History Fix
 
 ### Fixed

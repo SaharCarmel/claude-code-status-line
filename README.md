@@ -2,6 +2,19 @@
 
 Enhanced status line for Claude Code that shows intelligent 5-word summaries based on your actual conversation history.
 
+## 🚀 Major Updates
+
+### Latest: Enhanced Prompt Engineering (Aug 2025)
+- **Fixed truncated summaries** - no more cut-off text like "I need permission to create the file. Once you gra"
+- **Smarter summaries** using Anthropic's latest prompt engineering best practices
+- **XML-structured prompts** with role-based instructions for better accuracy
+- **Progress-focused output** that helps you track what Claude has been working on
+
+### Core Innovation: Real Conversation Analysis  
+- **Reads actual session history** from your Claude Code conversations
+- **Clean project history** - summaries run in isolation, won't pollute your `--resume` history
+- **Context-aware** - analyzes both human inputs and Claude responses
+
 ## Features
 
 - **Smart Context**: Reads your actual Claude Code conversation history instead of guessing from git status
