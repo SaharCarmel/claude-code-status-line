@@ -34,7 +34,7 @@ jobs:
         run: |
           cd homebrew-tap/Formula
           sed -i "s/version \".*\"/version \"${{ steps.release.outputs.version }}\"/" claude-code-status-line.rb
-          sed -i "s/refs\/tags\/v[0-9.]*/refs\/tags\/${{ steps.release.outputs.tag }}/" claude-code-status-line.rb  
+          sed -i "s|refs/tags/v[0-9.]*\.tar\.gz|refs/tags/${{ steps.release.outputs.tag }}.tar.gz|" claude-code-status-line.rb  
           sed -i "s/sha256 \".*\"/sha256 \"${{ steps.release.outputs.sha256 }}\"/" claude-code-status-line.rb
 
       - name: Commit and push
