@@ -161,6 +161,118 @@ if [[ -f "$cache_file" ]]; then
     haiku_summary=$(cat "$cache_file" 2>/dev/null)
 fi
 
+# Generate shortcuts detection (separate cache for performance)
+shortcuts_cache_file="$HOME/.claude/shortcuts_cache"
+shortcuts_timestamp_file="$HOME/.claude/shortcuts_timestamp"
+shortcuts_cache_duration=60  # Check every minute
+
+shortcuts_indicator=""
+refresh_shortcuts=false
+
+if [[ ! -f "$shortcuts_timestamp_file" ]] || [[ ! -f "$shortcuts_cache_file" ]]; then
+    refresh_shortcuts=true
+else
+    last_shortcuts_update=$(cat "$shortcuts_timestamp_file" 2>/dev/null || echo "0")
+    if (( current_time - last_shortcuts_update > shortcuts_cache_duration )); then
+        refresh_shortcuts=true
+    fi
+fi
+
+if [[ "$refresh_shortcuts" == "true" ]]; then
+    # Change to dedicated summary directory to avoid polluting project history
+    summary_dir="$HOME/.claude/statusline-summaries"
+    if cd "$summary_dir" 2>/dev/null; then
+        # Get Claude's recent conversation context (same as summary logic)
+        shortcuts_context=""
+        project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
+        
+        if [[ -d "$project_sessions_dir" ]]; then
+            # Get the current/most recent session only
+            current_session=$(ls -t "$project_sessions_dir"/*.jsonl 2>/dev/null | head -1)
+            
+            if [[ -n "$current_session" ]]; then
+                # Get all messages, find last user input, then get everything after it
+                all_messages=$(jq -r '
+                    select(.type == "user" or (.type == "assistant" and .message.content != null)) |
+                    if .type == "user" then
+                        "USER: " + (.message.content | if type == "string" then . else .[0].text // "..." end)
+                    elif .type == "assistant" then
+                        "CLAUDE: " + (.message.content[] | select(.type == "text") | .text)
+                    else
+                        empty
+                    end
+                ' "$current_session" 2>/dev/null)
+                
+                # Find the last user input and get everything from there
+                if [[ -n "$all_messages" ]]; then
+                    # Get line number of last USER: message
+                    last_user_line=$(echo "$all_messages" | grep -n "^USER:" | tail -1 | cut -d: -f1)
+                    
+                    if [[ -n "$last_user_line" ]]; then
+                        # Get all messages from last user input onwards
+                        session_data=$(echo "$all_messages" | tail -n +"$last_user_line" | head -c 800)
+                        shortcuts_context="Current session since last user input: $session_data"
+                    fi
+                fi
+            fi
+        fi
+        
+        # Create shortcuts detection prompt
+        if [[ -n "$shortcuts_context" ]]; then
+            shortcuts_prompt="<conversation_context>
+$shortcuts_context
+</conversation_context>
+
+<task>
+You are a code quality detector. Analyze the conversation for signs that Claude is taking shortcuts or avoiding proper implementations.
+
+Look for these patterns in Claude's responses:
+- Using mock data instead of real implementations
+- Suggesting placeholder/stub code
+- Avoiding complex logic with \"TODO\" or \"simplified\" comments
+- Using hardcoded values instead of proper configuration
+- Skipping error handling or validation
+- Suggesting \"quick fixes\" instead of proper solutions
+- Avoiding database/API integrations with fake data
+
+CRITICAL: Output ONLY one indicator from this exact list. No explanations, no extra text:
+
+🚨 MOCK
+⚡ SHORTCUT  
+🎯 SOLID
+❓ UNKNOWN
+
+Choose the most appropriate indicator based on the conversation. Output the EXACT text above, nothing more.
+</task>"
+
+            shortcuts_output=$(echo "$shortcuts_prompt" | claude --model haiku -p 2>/dev/null)
+            if [[ $? -eq 0 && -n "$shortcuts_output" ]]; then
+                # Extract just the valid indicators, ignore any extra text
+                shortcuts_indicator=""
+                if echo "$shortcuts_output" | grep -q "🚨 MOCK"; then
+                    shortcuts_indicator="🚨 MOCK"
+                elif echo "$shortcuts_output" | grep -q "⚡ SHORTCUT"; then
+                    shortcuts_indicator="⚡ SHORTCUT"
+                elif echo "$shortcuts_output" | grep -q "🎯 SOLID"; then
+                    shortcuts_indicator="🎯 SOLID"
+                elif echo "$shortcuts_output" | grep -q "❓ UNKNOWN"; then
+                    shortcuts_indicator="❓ UNKNOWN"
+                fi
+                
+                if [[ -n "$shortcuts_indicator" ]]; then
+                    echo "$shortcuts_indicator" > "$shortcuts_cache_file"
+                    echo "$current_time" > "$shortcuts_timestamp_file"
+                fi
+            fi
+        fi
+    fi
+fi
+
+# Read cached shortcuts indicator
+if [[ -f "$shortcuts_cache_file" ]]; then
+    shortcuts_indicator=$(cat "$shortcuts_cache_file" 2>/dev/null)
+fi
+
 # Get git information
 git_info=""
 if cd "$current_dir" 2>/dev/null; then
@@ -211,9 +323,14 @@ status_line="${status_line} | \033[35m🔥 \$${formatted_cost_per_hour}/hr\033[0
 status_line="${status_line} | \033[36m📝 ${lines_added}+/${lines_removed}-\033[0m"
 status_line="${status_line} | \033[37m${context_info}\033[0m"
 
+# Add shortcuts indicator if available  
+if [[ -n "$shortcuts_indicator" ]]; then
+    status_line="${status_line} | \033[33m${shortcuts_indicator}\033[0m"
+fi
+
 # Add haiku summary if available
 if [[ -n "$haiku_summary" ]]; then
-    status_line="${status_line} | \033[2;35m${haiku_summary}\033[0m"
+    status_line="${status_line} | \033[2;35m📋 ${haiku_summary}\033[0m"
 fi
 
 echo -e "$status_line"

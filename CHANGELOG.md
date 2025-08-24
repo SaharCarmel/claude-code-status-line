@@ -1,5 +1,30 @@
 # Changelog
 
+## [2025-08-24] - Code Quality Detection System
+
+### Added
+- **🚨 Shortcuts Detection**: New status line section that monitors Claude's code quality
+- **Real-time Quality Monitoring**: Detects when Claude uses mocks, takes shortcuts, or implements properly
+- **Current Session Focus**: Analyzes only the active session since last user input for relevant context
+- **Quality Indicators**: Four clear indicators (🚨 MOCK, ⚡ SHORTCUT, 🎯 SOLID, ❓ UNKNOWN)
+
+### Changed
+- **Session Analysis Logic**: Now focuses on current session only instead of last 2 sessions
+- **Context Scope**: Analyzes all messages since the last user input for complete context
+- **Visual Design**: Clean emoji-based indicators without text prefixes
+- **Robust Extraction**: Uses pattern matching to ensure only valid indicators are displayed
+
+### Fixed
+- **Partial Text Display**: Resolved issue where status line showed incomplete text like "Looking at"
+- **Irrelevant Context**: Removed analysis of old/unrelated sessions
+- **Output Reliability**: Improved prompt engineering to ensure consistent indicator output
+
+### Technical Details
+- Shortcuts detection runs every 60 seconds with separate caching
+- Uses current session JSONL file only
+- Analyzes conversation thread from last user input onwards
+- Employs strict prompt engineering with pattern-based extraction
+
 ## [2025-08-24] - Enhanced Prompt Engineering for Better Summaries
 
 ### Added

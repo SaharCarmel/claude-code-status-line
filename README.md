@@ -5,7 +5,7 @@ Enhanced status line for Claude Code that shows intelligent 5-word summaries bas
 ## 🎯 See It In Action
 
 ```
-➜ my-project git:(feature-branch) ✗ 🤖 Sonnet 4 | 💰 $3.46 session | ◯ IDE | 🔥 $6.92/hr | 📝 319+/215- | 🧠 86,271 (43%) | Implementing new feature with API
+➜ my-project git:(feature-branch) ✗ 🤖 Sonnet 4 | 💰 $3.46 session | ◯ IDE | 🔥 $6.92/hr | 📝 319+/215- | 🧠 86,271 (43%) | 🚨 MOCK | 📋 Implementing new feature with API
 ```
 
 **What you get:**
@@ -14,7 +14,8 @@ Enhanced status line for Claude Code that shows intelligent 5-word summaries bas
 - 💰 Session costs and performance
 - 📝 Code changes tracking
 - 🧠 Context window usage
-- ✨ **Smart 5-word summary of what Claude is actually working on**
+- 🚨 **Code quality detection** - monitors if Claude is using mocks or taking shortcuts
+- 📋 **Smart 5-word summary of what Claude is actually working on**
 
 [![GitHub stars](https://img.shields.io/github/stars/SaharCarmel/claude-code-status-line?style=flat-square)](https://github.com/SaharCarmel/claude-code-status-line/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
@@ -40,6 +41,13 @@ curl -sL https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/m
 - **Reads actual session history** from your Claude Code conversations
 - **Clean project history** - summaries run in isolation, won't pollute your `--resume` history
 - **Context-aware** - analyzes both human inputs and Claude responses
+
+### 🚨 Code Quality Detection
+Monitor Claude's implementation approach in real-time:
+- **🚨 MOCK** - Claude is using mock/fake data instead of real implementations
+- **⚡ SHORTCUT** - Claude is taking implementation shortcuts or using placeholders  
+- **🎯 SOLID** - Claude is implementing proper, production-ready solutions
+- **❓ UNKNOWN** - Insufficient context to determine implementation quality
 
 ## Features
 
