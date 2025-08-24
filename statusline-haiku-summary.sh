@@ -89,25 +89,38 @@ $claude_context
 </conversation_context>
 
 <task>
-You are a progress tracker for software development sessions. Your job is to create a concise status summary for a developer.
+CRITICAL: You MUST output EXACTLY 5 words describing what Claude has been working on. No explanations, no extra text, no context.
 
-Analyze the recent conversation between the human developer and Claude Code assistant. Focus on:
-- What specific task or problem Claude has been helping with
-- What actions Claude has taken (coding, debugging, analysis, etc.)
-- Current progress or state
+Analyze the conversation and identify the main development activity.
 
-Output ONLY a 5-word phrase that captures what Claude has been working on. The phrase should:
-- Be actionable and specific (not vague)
-- Help the user track their development progress  
-- Focus on the main activity, not side discussions
+STRICT OUTPUT REQUIREMENTS:
+- EXACTLY 5 words
+- No punctuation
+- No quotes  
+- No explanations
+- No "Based on" or similar phrases
 
-Examples of good 5-word summaries:
-- \"Fixing authentication database connection bug\"
-- \"Implementing user registration API endpoints\"
-- \"Debugging React component rendering issues\"
-- \"Setting up deployment pipeline configuration\"
+VALID EXAMPLES:
+Fixing authentication database connection bug
+Implementing user registration API endpoints  
+Debugging React component rendering issues
+Setting up deployment pipeline configuration
+Building new payment processing system
+Optimizing database query performance issues
+Creating automated testing framework setup
+Refactoring legacy code architecture patterns
+Integrating third party API services
+Troubleshooting production deployment configuration errors
 
-Remember: Output EXACTLY 5 words, nothing more, nothing less.
+INVALID EXAMPLES (DO NOT OUTPUT):
+"Based on the conversation about..."
+"Looking at the recent messages..."
+"From what I can see..."
+"The user is working on..."
+
+OUTPUT FORMAT: [word1] [word2] [word3] [word4] [word5]
+
+Your response:
 </task>"
         else
             # Fallback - check for recent file activity as secondary indicator
@@ -155,8 +168,14 @@ Output ONLY 5 words like \"Working on development project tasks\"
         
         haiku_output=$(echo "$project_prompt" | claude --model haiku -p 2>/dev/null)
         if [[ $? -eq 0 && -n "$haiku_output" ]]; then
-            # Get first line and truncate to 50 characters
-            haiku_summary=$(echo "$haiku_output" | head -n1 | cut -c1-50)
+            # Extract exactly 5 words, skip lines starting with explanatory phrases
+            haiku_summary=$(echo "$haiku_output" | grep -v "^Based on\|^Looking at\|^From the\|^According to" | head -n1 | awk '{print $1, $2, $3, $4, $5}' | cut -c1-50)
+            
+            # Fallback: if empty, take first 5 words from any line
+            if [[ -z "$haiku_summary" ]]; then
+                haiku_summary=$(echo "$haiku_output" | head -n1 | awk '{print $1, $2, $3, $4, $5}' | cut -c1-50)
+            fi
+            
             echo "$haiku_summary" > "$cache_file"
             echo "$current_time" > "$cache_timestamp_file"
             echo "$current_conversation_hash" > "$cache_hash_file"
