@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2025-08-24
+
+### Added
+- 🍺 Homebrew distribution support via `saharcarmel/claude` tap
+- Automatic dependency management through Homebrew formula
+- Easy update mechanism: `brew upgrade claude-code-status-line`
+
+### Changed
+- README now promotes Homebrew as the recommended installation method
+- Added Homebrew badge and benefits section
+
 ## [1.3.1] - 2025-08-24
 
 ### Added

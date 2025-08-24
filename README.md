@@ -25,10 +25,24 @@ Enhanced status line for Claude Code that shows intelligent 5-word summaries bas
 
 ## 🚀 Quick Install
 
+### 🍺 Homebrew (Recommended)
+```bash
+brew tap saharcarmel/claude
+brew install claude-code-status-line
+```
+
+**Benefits:**
+- ✅ Automatic dependency management (`jq`, `node`)
+- ✅ Easy updates: `brew upgrade claude-code-status-line`
+- ✅ Clean uninstall: `brew uninstall claude-code-status-line`
+- ✅ Version tracking and rollbacks
+
+### 📥 One-Line Install (Alternative)
 ```bash
 curl -sL https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/main/install.sh | bash
 ```
 
+[![Homebrew](https://img.shields.io/badge/Install-Homebrew-orange?style=for-the-badge&logo=homebrew&logoColor=white)](https://github.com/SaharCarmel/homebrew-claude)
 [![One-Line Install](https://img.shields.io/badge/Install-One%20Line-brightgreen?style=for-the-badge&logo=terminal&logoColor=white)](https://raw.githubusercontent.com/SaharCarmel/claude-code-status-line/main/install.sh)
 
 ## 🚀 Major Updates
