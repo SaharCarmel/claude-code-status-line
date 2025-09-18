@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Claude Code Status Line with Periodic Haiku Summary
-# This script runs 'claude --model haiku -p' periodically and caches the result
+# Claude Code Status Line
+# Displays project info, git status, model, costs, and code quality indicators
 
 # Read JSON input from stdin
 input=$(cat)
@@ -16,7 +16,7 @@ lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 
 current_time=$(date +%s)
 
-# Get current conversation hash to detect changes
+# Get current conversation hash to detect changes for shortcuts detection
 project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
 current_session_file="$project_sessions_dir/${session_id}.jsonl"
 current_conversation_hash=""
@@ -27,7 +27,7 @@ if [[ -f "$current_session_file" ]]; then
 fi
 
 
-# Generate shortcuts detection (separate cache for performance, session-isolated)
+# Code quality shortcuts detection with caching
 shortcuts_cache_file="$HOME/.claude/shortcuts_cache_${session_id}"
 shortcuts_timestamp_file="$HOME/.claude/shortcuts_timestamp_${session_id}"
 shortcuts_hash_file="$HOME/.claude/shortcuts_hash_${session_id}"
@@ -36,7 +36,7 @@ shortcuts_cache_duration=300  # Check every 5 minutes
 shortcuts_indicator=""
 refresh_shortcuts=false
 
-# Check if shortcuts cache needs refresh (same hash logic as summary)
+# Check if shortcuts cache needs refresh
 if [[ ! -f "$shortcuts_timestamp_file" ]] || [[ ! -f "$shortcuts_cache_file" ]] || [[ ! -f "$shortcuts_hash_file" ]]; then
     refresh_shortcuts=true
 else
@@ -50,10 +50,10 @@ else
 fi
 
 if [[ "$refresh_shortcuts" == "true" ]]; then
-    # Change to dedicated summary directory to avoid polluting project history
+    # Change to dedicated directory to avoid polluting project history
     summary_dir="$HOME/.claude/statusline-summaries"
     if cd "$summary_dir" 2>/dev/null; then
-        # Get Claude's recent conversation context (same as summary logic)
+        # Get Claude's recent conversation context
         shortcuts_context=""
         project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
         
@@ -186,7 +186,7 @@ else
     context_info="🧠 ${estimated_tokens} (${estimated_percentage}%)"
 fi
 
-# Build the complete status line similar to original
+# Build the complete status line
 status_line="\033[1;32m➜\033[0m \033[36m${basename}\033[0m${git_info}"
 status_line="${status_line} \033[33m🤖 ${model}\033[0m"
 status_line="${status_line} | \033[32m💰 \$${formatted_cost} session\033[0m"
@@ -195,11 +195,9 @@ status_line="${status_line} | \033[35m🔥 \$${formatted_cost_per_hour}/hr\033[0
 status_line="${status_line} | \033[36m📝 ${lines_added}+/${lines_removed}-\033[0m"
 status_line="${status_line} | \033[37m${context_info}\033[0m"
 
-# Add shortcuts indicator if available  
+# Add shortcuts indicator if available
 if [[ -n "$shortcuts_indicator" ]]; then
     status_line="${status_line} | \033[33m${shortcuts_indicator}\033[0m"
 fi
-
-
 
 echo -e "$status_line"
