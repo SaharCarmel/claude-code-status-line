@@ -14,14 +14,6 @@ api_duration_ms=$(echo "$input" | jq -r '.cost.total_api_duration_ms // 0')
 lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
 lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 
-# Cache configuration - use session_id for isolation
-cache_file="$HOME/.claude/haiku_summary_cache_${session_id}"
-cache_timestamp_file="$HOME/.claude/haiku_summary_timestamp_${session_id}"
-cache_hash_file="$HOME/.claude/haiku_summary_hash_${session_id}"
-cache_duration=300  # seconds (5 minutes)
-
-# Check if we need to refresh the cache based on conversation changes
-refresh_cache=false
 current_time=$(date +%s)
 
 # Get current conversation hash to detect changes
@@ -34,160 +26,6 @@ if [[ -f "$current_session_file" ]]; then
     current_conversation_hash=$(tail -10 "$current_session_file" | shasum -a 256 | cut -d' ' -f1)
 fi
 
-# Check if cache needs refresh
-if [[ ! -f "$cache_timestamp_file" ]] || [[ ! -f "$cache_file" ]] || [[ ! -f "$cache_hash_file" ]]; then
-    refresh_cache=true
-else
-    last_update=$(cat "$cache_timestamp_file" 2>/dev/null || echo "0")
-    last_hash=$(cat "$cache_hash_file" 2>/dev/null || echo "")
-    
-    # Refresh if conversation changed OR if it's been too long since last check
-    if [[ "$current_conversation_hash" != "$last_hash" ]] || (( current_time - last_update > cache_duration )); then
-        refresh_cache=true
-    fi
-fi
-
-# Refresh cache if needed
-if [[ "$refresh_cache" == "true" ]]; then
-    # Change to dedicated summary directory to avoid polluting project history
-    summary_dir="$HOME/.claude/statusline-summaries"
-    mkdir -p "$summary_dir"
-    if cd "$summary_dir" 2>/dev/null; then
-        # Get Claude's recent outputs from session files
-        claude_context=""
-        
-        # Build the project sessions path
-        project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
-        
-        if [[ -d "$project_sessions_dir" ]]; then
-            # Get the specific session file for this instance
-            current_session_file="$project_sessions_dir/${session_id}.jsonl"
-            
-            if [[ -f "$current_session_file" ]]; then
-                # Extract both user inputs and Claude's responses from current session
-                session_data=$(jq -r '
-                    select(.type == "user" or (.type == "assistant" and .message.content != null)) |
-                    if .type == "user" then
-                        "Human: " + (.message.content | if type == "string" then . else .[0].text // "..." end)
-                    elif .type == "assistant" then
-                        "Claude: " + (.message.content[] | select(.type == "text") | .text)
-                    else
-                        empty
-                    end
-                ' "$current_session_file" 2>/dev/null | tail -8 | head -c 400)
-                
-                if [[ -n "$session_data" ]]; then
-                    claude_context="Recent conversation: $session_data"
-                fi
-            fi
-        fi
-        
-        # Create prompt based on actual conversation
-        if [[ -n "$claude_context" ]]; then
-            project_prompt="<conversation_context>
-$claude_context
-</conversation_context>
-
-<task>
-CRITICAL: You MUST output EXACTLY 5 words describing what Claude has been working on. No explanations, no extra text, no context.
-
-Analyze the conversation and identify the main development activity.
-
-STRICT OUTPUT REQUIREMENTS:
-- EXACTLY 5 words
-- No punctuation
-- No quotes  
-- No explanations
-- No "Based on" or similar phrases
-
-VALID EXAMPLES:
-Fixing authentication database connection bug
-Implementing user registration API endpoints  
-Debugging React component rendering issues
-Setting up deployment pipeline configuration
-Building new payment processing system
-Optimizing database query performance issues
-Creating automated testing framework setup
-Refactoring legacy code architecture patterns
-Integrating third party API services
-Troubleshooting production deployment configuration errors
-
-INVALID EXAMPLES (DO NOT OUTPUT):
-"Based on the conversation about..."
-"Looking at the recent messages..."
-"From what I can see..."
-"The user is working on..."
-
-OUTPUT FORMAT: [word1] [word2] [word3] [word4] [word5]
-
-Your response:
-</task>"
-        else
-            # Fallback - check for recent file activity as secondary indicator
-            if cd "$current_dir" 2>/dev/null; then
-                recent_files=$(find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.md" -mmin -30 2>/dev/null | head -3 | sed 's|^\./||' | tr '\n' ', ')
-                current_branch=$(git branch --show-current 2>/dev/null)
-                
-                if [[ -n "$recent_files" ]]; then
-                    project_prompt="<context>
-Project: $(basename "$current_dir")
-Branch: $current_branch  
-Recent files: ${recent_files%,}
-</context>
-
-<task>
-You are a development progress tracker. Based on the project name, git branch, and recently modified files, create a 5-word summary of what development work is likely happening.
-
-Output ONLY 5 words that describe the current development activity. Be specific and actionable.
-
-Examples:
-- \"Building user authentication system components\"
-- \"Refactoring database connection handling logic\" 
-- \"Testing API endpoint response validation\"
-</task>"
-                else
-                    project_prompt="<context>
-Project: $(basename "$current_dir")
-Branch: $current_branch
-</context>
-
-<task>
-Based on the project name and git branch, create a 5-word summary of what development work is likely happening.
-
-Output ONLY 5 words that describe the development activity.
-</task>"
-                fi
-            else
-                project_prompt="<task>
-Create a generic 5-word summary for active development work.
-
-Output ONLY 5 words like \"Working on development project tasks\"
-</task>"
-            fi
-        fi
-        
-        haiku_output=$(echo "$project_prompt" | claude --model haiku -p 2>/dev/null)
-        if [[ $? -eq 0 && -n "$haiku_output" ]]; then
-            # Extract exactly 5 words, skip lines starting with explanatory phrases
-            haiku_summary=$(echo "$haiku_output" | grep -v "^Based on\|^Looking at\|^From the\|^According to" | head -n1 | awk '{print $1, $2, $3, $4, $5}' | cut -c1-50)
-            
-            # Fallback: if empty, take first 5 words from any line
-            if [[ -z "$haiku_summary" ]]; then
-                haiku_summary=$(echo "$haiku_output" | head -n1 | awk '{print $1, $2, $3, $4, $5}' | cut -c1-50)
-            fi
-            
-            echo "$haiku_summary" > "$cache_file"
-            echo "$current_time" > "$cache_timestamp_file"
-            echo "$current_conversation_hash" > "$cache_hash_file"
-        fi
-    fi
-fi
-
-# Read the cached summary
-haiku_summary=""
-if [[ -f "$cache_file" ]]; then
-    haiku_summary=$(cat "$cache_file" 2>/dev/null)
-fi
 
 # Generate shortcuts detection (separate cache for performance, session-isolated)
 shortcuts_cache_file="$HOME/.claude/shortcuts_cache_${session_id}"
@@ -362,19 +200,6 @@ if [[ -n "$shortcuts_indicator" ]]; then
     status_line="${status_line} | \033[33m${shortcuts_indicator}\033[0m"
 fi
 
-# Add haiku summary if available
-if [[ -n "$haiku_summary" ]]; then
-    status_line="${status_line} | \033[2;35m📋 ${haiku_summary}\033[0m"
-fi
 
-# Add last updated timestamp
-if [[ -f "$cache_timestamp_file" ]]; then
-    last_update_time=$(cat "$cache_timestamp_file" 2>/dev/null || echo "0")
-    if [[ "$last_update_time" != "0" ]]; then
-        # Format as readable time
-        formatted_time=$(date -r "$last_update_time" "+%H:%M" 2>/dev/null || echo "??:??")
-        status_line="${status_line} | \033[90m⏰ ${formatted_time}\033[0m"
-    fi
-fi
 
 echo -e "$status_line"
