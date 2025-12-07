@@ -168,22 +168,37 @@ cost_per_hour=$(echo "scale=2; if ($duration_hours > 0) $total_cost / $duration_
 formatted_cost=$(printf "%.2f" "$total_cost" 2>/dev/null || echo "0.00")
 formatted_cost_per_hour=$(printf "%.2f" "$cost_per_hour" 2>/dev/null || echo "0.00")
 
-# Get real context window usage from ccusage
-ccusage_output=$(echo "$input" | bun x ccusage statusline 2>/dev/null)
-if [[ -n "$ccusage_output" ]]; then
-    # Extract context info from ccusage output
-    context_info=$(echo "$ccusage_output" | grep -o "🧠 [0-9,]* ([0-9]*%)" | head -1)
-    if [[ -z "$context_info" ]]; then
-        # Fallback: estimate based on session activity
-        estimated_tokens=$(echo "scale=0; 10000 + ($lines_added + $lines_removed) * 50" | bc -l 2>/dev/null || echo "15000")
-        estimated_percentage=$(echo "scale=0; $estimated_tokens * 100 / 200000" | bc -l 2>/dev/null || echo "8")
-        context_info="🧠 ${estimated_tokens} (${estimated_percentage}%)"
+# Get context window usage from session file API data
+context_info=""
+if [[ -f "$current_session_file" ]]; then
+    total_tokens=$(tail -50 "$current_session_file" | grep '"usage"' | tail -1 | \
+        jq '.message.usage | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)' 2>/dev/null)
+    if [[ -n "$total_tokens" && "$total_tokens" != "null" && "$total_tokens" -gt 0 ]]; then
+        context_window=200000
+        percentage=$((total_tokens * 100 / context_window))
+        # Format tokens in k (e.g., 150000 -> 150k)
+        if (( total_tokens >= 1000 )); then
+            formatted_tokens="$((total_tokens / 1000))k"
+        else
+            formatted_tokens="$total_tokens"
+        fi
+        context_info="🧠 ${formatted_tokens}/200k (${percentage}%)"
     fi
-else
-    # Fallback: estimate based on session activity
-    estimated_tokens=$(echo "scale=0; 10000 + ($lines_added + $lines_removed) * 50" | bc -l 2>/dev/null || echo "15000")
-    estimated_percentage=$(echo "scale=0; $estimated_tokens * 100 / 200000" | bc -l 2>/dev/null || echo "8")
-    context_info="🧠 ${estimated_tokens} (${estimated_percentage}%)"
+fi
+
+# Final fallback
+if [[ -z "$context_info" ]]; then
+    context_info="🧠 -- (--)"
+fi
+
+# MCP usage display - show which MCPs were used in this session
+mcp_display=""
+if [[ -f "$current_session_file" ]]; then
+    used_mcps=$(grep -o '"name":"mcp__[^_]*' "$current_session_file" 2>/dev/null | \
+        sed 's/"name":"mcp__//' | sort -u | tr '\n' ' ')
+    if [[ -n "$used_mcps" ]]; then
+        mcp_display="🔌 \033[32m${used_mcps}\033[0m"
+    fi
 fi
 
 # Build the complete status line
@@ -198,6 +213,11 @@ status_line="${status_line} | \033[37m${context_info}\033[0m"
 # Add shortcuts indicator if available
 if [[ -n "$shortcuts_indicator" ]]; then
     status_line="${status_line} | \033[33m${shortcuts_indicator}\033[0m"
+fi
+
+# Add MCP display if available
+if [[ -n "$mcp_display" ]]; then
+    status_line="${status_line} | ${mcp_display}"
 fi
 
 echo -e "$status_line"
