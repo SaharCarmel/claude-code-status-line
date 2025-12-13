@@ -42,7 +42,7 @@ if [[ ! -f "$shortcuts_timestamp_file" ]] || [[ ! -f "$shortcuts_cache_file" ]] 
 else
     last_shortcuts_update=$(cat "$shortcuts_timestamp_file" 2>/dev/null || echo "0")
     last_shortcuts_hash=$(cat "$shortcuts_hash_file" 2>/dev/null || echo "")
-    
+
     # Refresh if conversation changed OR if it's been too long since last check
     if [[ "$current_conversation_hash" != "$last_shortcuts_hash" ]] || (( current_time - last_shortcuts_update > shortcuts_cache_duration )); then
         refresh_shortcuts=true
@@ -56,11 +56,11 @@ if [[ "$refresh_shortcuts" == "true" ]]; then
         # Get Claude's recent conversation context
         shortcuts_context=""
         project_sessions_dir="$HOME/.claude/projects/$(echo "$current_dir" | sed 's|/|-|g')"
-        
+
         if [[ -d "$project_sessions_dir" ]]; then
             # Get the specific session file for this instance
             current_session="$project_sessions_dir/${session_id}.jsonl"
-            
+
             if [[ -f "$current_session" ]]; then
                 # Get all messages, find last user input, then get everything after it
                 all_messages=$(jq -r '
@@ -73,12 +73,12 @@ if [[ "$refresh_shortcuts" == "true" ]]; then
                         empty
                     end
                 ' "$current_session" 2>/dev/null)
-                
+
                 # Find the last user input and get everything from there
                 if [[ -n "$all_messages" ]]; then
                     # Get line number of last USER: message
                     last_user_line=$(echo "$all_messages" | grep -n "^USER:" | tail -1 | cut -d: -f1)
-                    
+
                     if [[ -n "$last_user_line" ]]; then
                         # Get all messages from last user input onwards
                         session_data=$(echo "$all_messages" | tail -n +"$last_user_line" | head -c 800)
@@ -87,7 +87,7 @@ if [[ "$refresh_shortcuts" == "true" ]]; then
                 fi
             fi
         fi
-        
+
         # Create shortcuts detection prompt
         if [[ -n "$shortcuts_context" ]]; then
             shortcuts_prompt="<conversation_context>
@@ -109,7 +109,7 @@ Look for these patterns in Claude's responses:
 CRITICAL: Output ONLY one indicator from this exact list. No explanations, no extra text:
 
 🚨 MOCK
-⚡ SHORTCUT  
+⚡ SHORTCUT
 🎯 SOLID
 ❓ UNKNOWN
 
@@ -129,7 +129,7 @@ Choose the most appropriate indicator based on the conversation. Output the EXAC
                 elif echo "$shortcuts_output" | grep -q "❓ UNKNOWN"; then
                     shortcuts_indicator="❓ UNKNOWN"
                 fi
-                
+
                 if [[ -n "$shortcuts_indicator" ]]; then
                     echo "$shortcuts_indicator" > "$shortcuts_cache_file"
                     echo "$current_time" > "$shortcuts_timestamp_file"
@@ -168,27 +168,73 @@ cost_per_hour=$(echo "scale=2; if ($duration_hours > 0) $total_cost / $duration_
 formatted_cost=$(printf "%.2f" "$total_cost" 2>/dev/null || echo "0.00")
 formatted_cost_per_hour=$(printf "%.2f" "$cost_per_hour" 2>/dev/null || echo "0.00")
 
-# Get context window usage from session file API data
-context_info=""
-if [[ -f "$current_session_file" ]]; then
+# Get context window usage - try JSON input first, then fallback to session file
+context_used=$(echo "$input" | jq -r '.context.used // 0')
+context_max=$(echo "$input" | jq -r '.context.max // 200000')
+
+# Fallback: if JSON doesn't have context info, try session file
+if [[ "$context_used" -eq 0 ]] && [[ -f "$current_session_file" ]]; then
     total_tokens=$(tail -50 "$current_session_file" | grep '"usage"' | tail -1 | \
         jq '.message.usage | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)' 2>/dev/null)
     if [[ -n "$total_tokens" && "$total_tokens" != "null" && "$total_tokens" -gt 0 ]]; then
-        context_window=200000
-        percentage=$((total_tokens * 100 / context_window))
-        # Format tokens in k (e.g., 150000 -> 150k)
-        if (( total_tokens >= 1000 )); then
-            formatted_tokens="$((total_tokens / 1000))k"
-        else
-            formatted_tokens="$total_tokens"
-        fi
-        context_info="🧠 ${formatted_tokens}/200k (${percentage}%)"
+        context_used=$total_tokens
+        context_max=200000
     fi
 fi
 
-# Final fallback
-if [[ -z "$context_info" ]]; then
-    context_info="🧠 -- (--)"
+# Calculate percentage
+if [[ "$context_max" -gt 0 ]] && [[ "$context_used" -gt 0 ]]; then
+    context_percentage=$((context_used * 100 / context_max))
+else
+    context_percentage=0
+fi
+
+# Generate progress bar (10 characters wide)
+bar_width=10
+if [[ "$context_percentage" -gt 0 ]]; then
+    filled=$((context_percentage * bar_width / 100))
+    [[ "$filled" -lt 1 ]] && filled=1  # Show at least 1 block if there's any usage
+else
+    filled=0
+fi
+empty=$((bar_width - filled))
+
+# Choose color based on percentage
+if [[ "$context_percentage" -lt 50 ]]; then
+    bar_color="\033[32m"  # Green
+elif [[ "$context_percentage" -lt 75 ]]; then
+    bar_color="\033[33m"  # Yellow
+elif [[ "$context_percentage" -lt 90 ]]; then
+    bar_color="\033[38;5;208m"  # Orange
+else
+    bar_color="\033[31m"  # Red
+fi
+
+# Build progress bar with filled and empty segments
+progress_bar=""
+for ((i=0; i<filled; i++)); do
+    progress_bar+="█"
+done
+for ((i=0; i<empty; i++)); do
+    progress_bar+="░"
+done
+
+# Format token count (e.g., 15k or 150k)
+if [[ "$context_used" -ge 1000000 ]]; then
+    formatted_tokens="$((context_used / 1000000))M"
+elif [[ "$context_used" -ge 1000 ]]; then
+    formatted_tokens="$((context_used / 1000))k"
+elif [[ "$context_used" -gt 0 ]]; then
+    formatted_tokens="$context_used"
+else
+    formatted_tokens="--"
+fi
+
+# Build context info with progress bar
+if [[ "$context_used" -gt 0 ]]; then
+    context_info="${bar_color}${progress_bar}\033[0m ${formatted_tokens} (${context_percentage}%)"
+else
+    context_info="${bar_color}${progress_bar}\033[0m -- (--)"
 fi
 
 # MCP usage display - show which MCPs were used in this session
@@ -208,7 +254,7 @@ status_line="${status_line} | \033[32m💰 \$${formatted_cost} session\033[0m"
 status_line="${status_line} | \033[34m◯ IDE\033[0m"
 status_line="${status_line} | \033[35m🔥 \$${formatted_cost_per_hour}/hr\033[0m"
 status_line="${status_line} | \033[36m📝 ${lines_added}+/${lines_removed}-\033[0m"
-status_line="${status_line} | \033[37m${context_info}\033[0m"
+status_line="${status_line} | 🧠 ${context_info}"
 
 # Add shortcuts indicator if available
 if [[ -n "$shortcuts_indicator" ]]; then
