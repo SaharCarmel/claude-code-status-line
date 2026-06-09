@@ -281,6 +281,18 @@ limit_color() {
     fi
 }
 
+# Build a small colored progress bar: mini_bar <pct> <width>
+mini_bar() {
+    local pct=$1 width=$2
+    local fill=$(((pct * width + 50) / 100))
+    (( pct > 0 && fill < 1 )) && fill=1
+    (( fill > width )) && fill=$width
+    local bar=""
+    for ((i=0; i<fill; i++)); do bar+="█"; done
+    for ((i=fill; i<width; i++)); do bar+="░"; done
+    echo "$(limit_color "$pct")${bar}\033[0m"
+}
+
 limits_display=""
 five_hour_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 seven_day_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
@@ -291,18 +303,16 @@ if [[ -n "$five_hour_pct" ]]; then
     reset_str=""
     if [[ -n "$five_hour_reset" ]]; then
         reset_time=$(date -r "$five_hour_reset" +%H:%M 2>/dev/null)
-        [[ -n "$reset_time" ]] && reset_str="→${reset_time}"
+        [[ -n "$reset_time" ]] && reset_str=" \033[2m↻ ${reset_time}\033[0m"
     fi
-    limits_display="$(limit_color "$five_hour_int")5h:${five_hour_int}%${reset_str}\033[0m"
+    limits_display="⏱️  5h $(mini_bar "$five_hour_int" 5) ${five_hour_int}%${reset_str}"
 fi
 
 if [[ -n "$seven_day_pct" ]]; then
     seven_day_int=$(printf "%.0f" "$seven_day_pct")
-    [[ -n "$limits_display" ]] && limits_display="${limits_display} "
-    limits_display="${limits_display}$(limit_color "$seven_day_int")wk:${seven_day_int}%\033[0m"
+    [[ -n "$limits_display" ]] && limits_display="${limits_display} | "
+    limits_display="${limits_display}📅 wk $(mini_bar "$seven_day_int" 5) ${seven_day_int}%"
 fi
-
-[[ -n "$limits_display" ]] && limits_display="⏳ ${limits_display}"
 
 # MCP usage display - show which MCPs were used in this session
 mcp_display=""
