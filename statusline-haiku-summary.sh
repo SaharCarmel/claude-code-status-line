@@ -159,6 +159,36 @@ if cd "$current_dir" 2>/dev/null; then
     fi
 fi
 
+# PR link detection with caching
+pr_display=""
+if [[ -n "$git_branch" ]]; then
+    pr_cache_file="$HOME/.claude/pr_cache_$(echo "${current_dir}_${git_branch}" | shasum -a 256 | cut -d' ' -f1)"
+    pr_timestamp_file="${pr_cache_file}_ts"
+    pr_cache_duration=60
+
+    refresh_pr=false
+    if [[ ! -f "$pr_timestamp_file" ]] || [[ ! -f "$pr_cache_file" ]]; then
+        refresh_pr=true
+    else
+        last_pr_update=$(cat "$pr_timestamp_file" 2>/dev/null || echo "0")
+        if (( current_time - last_pr_update > pr_cache_duration )); then
+            refresh_pr=true
+        fi
+    fi
+
+    if [[ "$refresh_pr" == "true" ]]; then
+        pr_url=$(cd "$current_dir" && gh pr view --json url -q .url 2>/dev/null || echo "")
+        echo "$pr_url" > "$pr_cache_file"
+        echo "$current_time" > "$pr_timestamp_file"
+    fi
+
+    pr_url=$(cat "$pr_cache_file" 2>/dev/null)
+    if [[ -n "$pr_url" ]]; then
+        pr_number=$(echo "$pr_url" | grep -o '[0-9]*$')
+        pr_display=" | 🔗 PR#${pr_number}"
+    fi
+fi
+
 # Calculate additional metrics
 basename=$(basename "$current_dir")
 duration_hours=$(echo "scale=1; $total_duration_ms / 3600000" | bc -l 2>/dev/null || echo "0.0")
@@ -237,6 +267,43 @@ else
     context_info="${bar_color}${progress_bar}\033[0m -- (--)"
 fi
 
+# Usage limits (5-hour session + weekly) from statusline JSON (Pro/Max only)
+limit_color() {
+    local pct=$1
+    if (( pct < 50 )); then
+        echo "\033[32m"   # Green
+    elif (( pct < 75 )); then
+        echo "\033[33m"   # Yellow
+    elif (( pct < 90 )); then
+        echo "\033[38;5;208m"  # Orange
+    else
+        echo "\033[31m"   # Red
+    fi
+}
+
+limits_display=""
+five_hour_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+seven_day_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+five_hour_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+
+if [[ -n "$five_hour_pct" ]]; then
+    five_hour_int=$(printf "%.0f" "$five_hour_pct")
+    reset_str=""
+    if [[ -n "$five_hour_reset" ]]; then
+        reset_time=$(date -r "$five_hour_reset" +%H:%M 2>/dev/null)
+        [[ -n "$reset_time" ]] && reset_str="→${reset_time}"
+    fi
+    limits_display="$(limit_color "$five_hour_int")5h:${five_hour_int}%${reset_str}\033[0m"
+fi
+
+if [[ -n "$seven_day_pct" ]]; then
+    seven_day_int=$(printf "%.0f" "$seven_day_pct")
+    [[ -n "$limits_display" ]] && limits_display="${limits_display} "
+    limits_display="${limits_display}$(limit_color "$seven_day_int")wk:${seven_day_int}%\033[0m"
+fi
+
+[[ -n "$limits_display" ]] && limits_display="⏳ ${limits_display}"
+
 # MCP usage display - show which MCPs were used in this session
 mcp_display=""
 if [[ -f "$current_session_file" ]]; then
@@ -247,14 +314,20 @@ if [[ -f "$current_session_file" ]]; then
     fi
 fi
 
+# Shorten model name (strip "Claude " prefix)
+short_model=$(echo "$model" | sed 's/^Claude //')
+
 # Build the complete status line
-status_line="\033[1;32m➜\033[0m \033[36m${basename}\033[0m${git_info}"
-status_line="${status_line} \033[33m🤖 ${model}\033[0m"
-status_line="${status_line} | \033[32m💰 \$${formatted_cost} session\033[0m"
-status_line="${status_line} | \033[34m◯ IDE\033[0m"
-status_line="${status_line} | \033[35m🔥 \$${formatted_cost_per_hour}/hr\033[0m"
-status_line="${status_line} | \033[36m📝 ${lines_added}+/${lines_removed}-\033[0m"
+status_line="\033[1;32m➜\033[0m \033[36m${basename}\033[0m${git_info}${pr_display}"
+status_line="${status_line} | \033[33m🤖 ${short_model}\033[0m"
+status_line="${status_line} | \033[32m💰\$${formatted_cost}\033[0m"
+status_line="${status_line} | \033[36m📝${lines_added}+/${lines_removed}-\033[0m"
 status_line="${status_line} | 🧠 ${context_info}"
+
+# Add usage limits if available
+if [[ -n "$limits_display" ]]; then
+    status_line="${status_line} | ${limits_display}"
+fi
 
 # Add shortcuts indicator if available
 if [[ -n "$shortcuts_indicator" ]]; then

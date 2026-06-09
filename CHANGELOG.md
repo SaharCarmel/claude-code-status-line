@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- ⏳ Usage limits display: 5-hour session and weekly limit percentages from Claude Code's `rate_limits` statusline JSON, color-coded (green/yellow/orange/red) with 5h reset time
+
 ## [1.3.3] - 2025-08-24
 
 ### Added
