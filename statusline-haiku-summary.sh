@@ -1,18 +1,13 @@
 #!/bin/bash
 
 # Claude Code Status Line
-# Displays project info, git status, model, costs, and code quality indicators
+# Displays project info, git status, model, context usage, and usage limits
 
 # Read JSON input from stdin
 input=$(cat)
 current_dir=$(echo "$input" | jq -r '.workspace.current_dir')
 session_id=$(echo "$input" | jq -r '.session_id // "unknown"')
 model=$(echo "$input" | jq -r '.model.display_name')
-total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
-total_duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // 0')
-api_duration_ms=$(echo "$input" | jq -r '.cost.total_api_duration_ms // 0')
-lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
-lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 
 current_time=$(date +%s)
 
@@ -121,13 +116,13 @@ Choose the most appropriate indicator based on the conversation. Output the EXAC
                 # Extract just the valid indicators, ignore any extra text
                 shortcuts_indicator=""
                 if echo "$shortcuts_output" | grep -q "🚨 MOCK"; then
-                    shortcuts_indicator="🚨 MOCK"
+                    shortcuts_indicator="MOCK"
                 elif echo "$shortcuts_output" | grep -q "⚡ SHORTCUT"; then
-                    shortcuts_indicator="⚡ SHORTCUT"
+                    shortcuts_indicator="SHORTCUT"
                 elif echo "$shortcuts_output" | grep -q "🎯 SOLID"; then
-                    shortcuts_indicator="🎯 SOLID"
+                    shortcuts_indicator="SOLID"
                 elif echo "$shortcuts_output" | grep -q "❓ UNKNOWN"; then
-                    shortcuts_indicator="❓ UNKNOWN"
+                    shortcuts_indicator="UNKNOWN"
                 fi
 
                 if [[ -n "$shortcuts_indicator" ]]; then
@@ -185,18 +180,12 @@ if [[ -n "$git_branch" ]]; then
     pr_url=$(cat "$pr_cache_file" 2>/dev/null)
     if [[ -n "$pr_url" ]]; then
         pr_number=$(echo "$pr_url" | grep -o '[0-9]*$')
-        pr_display=" | 🔗 PR#${pr_number}"
+        pr_display=" | PR#${pr_number}"
     fi
 fi
 
-# Calculate additional metrics
+# Project name
 basename=$(basename "$current_dir")
-duration_hours=$(echo "scale=1; $total_duration_ms / 3600000" | bc -l 2>/dev/null || echo "0.0")
-cost_per_hour=$(echo "scale=2; if ($duration_hours > 0) $total_cost / $duration_hours else 0" | bc -l 2>/dev/null || echo "0.00")
-
-# Format costs
-formatted_cost=$(printf "%.2f" "$total_cost" 2>/dev/null || echo "0.00")
-formatted_cost_per_hour=$(printf "%.2f" "$cost_per_hour" 2>/dev/null || echo "0.00")
 
 # Get context window usage from Claude Code's statusline JSON (context_window.*)
 context_max=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
@@ -315,23 +304,13 @@ if [[ -n "$five_hour_pct" ]]; then
         reset_time=$(date -r "$five_hour_reset" +%H:%M 2>/dev/null)
         [[ -n "$reset_time" ]] && reset_str=" \033[2m↻ ${reset_time}\033[0m"
     fi
-    limits_display="⏱️  5h $(mini_bar "$five_hour_int" 5) ${five_hour_int}%${reset_str}"
+    limits_display="5h $(mini_bar "$five_hour_int" 5) ${five_hour_int}%${reset_str}"
 fi
 
 if [[ -n "$seven_day_pct" ]]; then
     seven_day_int=$(printf "%.0f" "$seven_day_pct")
     [[ -n "$limits_display" ]] && limits_display="${limits_display} | "
-    limits_display="${limits_display}📅 wk $(mini_bar "$seven_day_int" 5) ${seven_day_int}%"
-fi
-
-# MCP usage display - show which MCPs were used in this session
-mcp_display=""
-if [[ -f "$current_session_file" ]]; then
-    used_mcps=$(grep -o '"name":"mcp__[^_]*' "$current_session_file" 2>/dev/null | \
-        sed 's/"name":"mcp__//' | sort -u | tr '\n' ' ')
-    if [[ -n "$used_mcps" ]]; then
-        mcp_display="🔌 \033[32m${used_mcps}\033[0m"
-    fi
+    limits_display="${limits_display}wk $(mini_bar "$seven_day_int" 5) ${seven_day_int}%"
 fi
 
 # Shorten model name (strip "Claude " prefix)
@@ -339,10 +318,8 @@ short_model=$(echo "$model" | sed 's/^Claude //')
 
 # Build the complete status line
 status_line="\033[1;32m➜\033[0m \033[36m${basename}\033[0m${git_info}${pr_display}"
-status_line="${status_line} | \033[33m🤖 ${short_model}\033[0m"
-status_line="${status_line} | \033[32m💰\$${formatted_cost}\033[0m"
-status_line="${status_line} | \033[36m📝${lines_added}+/${lines_removed}-\033[0m"
-status_line="${status_line} | 🧠 ${context_info}"
+status_line="${status_line} | \033[33m${short_model}\033[0m"
+status_line="${status_line} | ${context_info}"
 
 # Add usage limits if available
 if [[ -n "$limits_display" ]]; then
@@ -352,11 +329,6 @@ fi
 # Add shortcuts indicator if available
 if [[ -n "$shortcuts_indicator" ]]; then
     status_line="${status_line} | \033[33m${shortcuts_indicator}\033[0m"
-fi
-
-# Add MCP display if available
-if [[ -n "$mcp_display" ]]; then
-    status_line="${status_line} | ${mcp_display}"
 fi
 
 echo -e "$status_line"
