@@ -198,17 +198,27 @@ cost_per_hour=$(echo "scale=2; if ($duration_hours > 0) $total_cost / $duration_
 formatted_cost=$(printf "%.2f" "$total_cost" 2>/dev/null || echo "0.00")
 formatted_cost_per_hour=$(printf "%.2f" "$cost_per_hour" 2>/dev/null || echo "0.00")
 
-# Get context window usage - try JSON input first, then fallback to session file
-context_used=$(echo "$input" | jq -r '.context.used // 0')
-context_max=$(echo "$input" | jq -r '.context.max // 200000')
+# Get context window usage from Claude Code's statusline JSON (context_window.*)
+context_max=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
+context_used=$(echo "$input" | jq -r '.context_window.current_usage | if . == null then 0 else (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0) end')
+[[ "$context_used" =~ ^[0-9]+$ ]] || context_used=0
 
-# Fallback: if JSON doesn't have context info, try session file
+# Window size fallback: 1M for [1m] models, otherwise 200k
+if ! [[ "$context_max" =~ ^[0-9]+$ ]] || [[ "$context_max" -eq 0 ]]; then
+    model_id=$(echo "$input" | jq -r '.model.id // ""')
+    if [[ "$model_id" == *"[1m]"* || "$model" == *"1M"* ]]; then
+        context_max=1000000
+    else
+        context_max=200000
+    fi
+fi
+
+# Fallback: if JSON doesn't have usage yet, read the last usage from the session file
 if [[ "$context_used" -eq 0 ]] && [[ -f "$current_session_file" ]]; then
     total_tokens=$(tail -50 "$current_session_file" | grep '"usage"' | tail -1 | \
         jq '.message.usage | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)' 2>/dev/null)
     if [[ -n "$total_tokens" && "$total_tokens" != "null" && "$total_tokens" -gt 0 ]]; then
         context_used=$total_tokens
-        context_max=200000
     fi
 fi
 
@@ -251,7 +261,7 @@ done
 
 # Format token count (e.g., 15k or 150k)
 if [[ "$context_used" -ge 1000000 ]]; then
-    formatted_tokens="$((context_used / 1000000))M"
+    formatted_tokens="$(printf "%.1f" "$(echo "$context_used / 1000000" | bc -l)")M"
 elif [[ "$context_used" -ge 1000 ]]; then
     formatted_tokens="$((context_used / 1000))k"
 elif [[ "$context_used" -gt 0 ]]; then
