@@ -368,6 +368,7 @@ limits_display=""
 five_hour_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 seven_day_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 five_hour_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+seven_day_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty' | cut -d. -f1)
 
 if [[ -n "$five_hour_pct" ]]; then
     five_hour_int=$(printf "%.0f" "$five_hour_pct")
@@ -383,6 +384,15 @@ if [[ -n "$seven_day_pct" ]]; then
     seven_day_int=$(printf "%.0f" "$seven_day_pct")
     [[ -n "$limits_display" ]] && limits_display="${limits_display} | "
     limits_display="${limits_display}wk $(mini_bar "$seven_day_int" 5) ${seven_day_int}%"
+    # Time until the weekly reset: whole days, or hours on the last day
+    if [[ "$seven_day_reset" =~ ^[0-9]+$ ]] && (( seven_day_reset > current_time )); then
+        secs_left=$((seven_day_reset - current_time))
+        if (( secs_left >= 86400 )); then
+            limits_display="${limits_display} \033[2m↻ $((secs_left / 86400))d\033[0m"
+        else
+            limits_display="${limits_display} \033[2m↻ $(((secs_left + 3599) / 3600))h\033[0m"
+        fi
+    fi
 fi
 
 # Shorten model name (strip "Claude " prefix)
