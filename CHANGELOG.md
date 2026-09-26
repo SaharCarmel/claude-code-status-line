@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - ⏱️ Usage limits display: 5-hour session and weekly limits as mini color-coded progress bars (green/yellow/orange/red) with percentage and 5h reset time, from Claude Code's `rate_limits` statusline JSON
+- Session PRs: the status line lists every PR linked to the session (from Claude Code's `pr-link` transcript records, including PRs opened by subagents and workflows) plus the current branch's PR, each as a clickable link with a status mark: ✓ CI passed, ⏳ CI running, ✗ CI failed, ◐ draft, ⇲ merged, ⊘ closed, `!` changes requested. The current branch's PR is bold; at most 5 are shown, then `+N`
+
+### Changed
+- PR statuses are fetched in the background with one GraphQL call and cached for 60 seconds, so rendering the status line no longer waits on `gh`
 
 ## [1.3.3] - 2025-08-24
 

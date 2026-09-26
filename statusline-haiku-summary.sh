@@ -154,33 +154,101 @@ if cd "$current_dir" 2>/dev/null; then
     fi
 fi
 
-# PR link detection with caching
+# Session PRs: every PR Claude Code linked to this session (its own "pr-link"
+# transcript records, which include PRs opened by subagents and workflows), plus
+# the current branch's PR. Statuses are fetched in the background with one
+# GraphQL call and cached, so the status line never waits on the network.
+transcript_path=$(echo "$input" | jq -r '.transcript_path // empty')
+[[ -z "$transcript_path" ]] && transcript_path="$current_session_file"
+
+pr_cache_file="$HOME/.claude/session_prs_${session_id}"
+pr_timestamp_file="${pr_cache_file}_ts"
+pr_lock_dir="${pr_cache_file}_lock"
+pr_cache_duration=60
+pr_max_shown=5
+
+# Collect the session's PRs and write one TSV line per PR to the cache:
+# number, state, isDraft, reviewDecision, ciState, headRefName, url
+refresh_session_prs() {
+    local links repo_slug query aliases slug n i=0
+    links=$(grep -h '"type":"pr-link"' "$transcript_path" 2>/dev/null \
+        | jq -r 'select(.prRepository and .prNumber) | "\(.prRepository)\t\(.prNumber)"' 2>/dev/null | sort -u)
+
+    local fields='number state isDraft reviewDecision headRefName url commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }'
+    query=""
+    # Linked PRs, grouped per repository
+    for slug in $(echo "$links" | cut -f1 | grep -v '^$' | sort -u); do
+        aliases=""
+        for n in $(echo "$links" | awk -F'\t' -v s="$slug" '$1 == s { print $2 }'); do
+            aliases+=" p${n}: pullRequest(number: ${n}) { ${fields} }"
+        done
+        query+=" r$((i++)): repository(owner: \"${slug%%/*}\", name: \"${slug##*/}\") {${aliases} }"
+    done
+    # The current branch's PR, in the current repository
+    repo_slug=$(cd "$current_dir" 2>/dev/null && git remote get-url origin 2>/dev/null \
+        | sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' | sed 's/\.git$//')
+    if [[ -n "$repo_slug" && -n "$git_branch" && "$git_branch" != "main" && "$git_branch" != "master" ]]; then
+        query+=" r$((i++)): repository(owner: \"${repo_slug%%/*}\", name: \"${repo_slug##*/}\") { b: pullRequests(headRefName: \"${git_branch//\"/}\", first: 1, orderBy: {field: CREATED_AT, direction: DESC}, states: [OPEN, MERGED, CLOSED]) { nodes { ${fields} } } }"
+    fi
+
+    local result=""
+    if [[ -n "$query" ]]; then
+        result=$(gh api graphql -f query="query {${query} }" 2>/dev/null) || return 1
+    fi
+    echo "$result" | jq -r '
+        [.data // {} | .[] | .[]? | if type == "object" and has("nodes") then .nodes[] else . end
+         | select(type == "object" and .number != null)]
+        | unique_by(.url)[]
+        | [.number, .state, .isDraft, (.reviewDecision // ""),
+           (.commits.nodes[0].commit.statusCheckRollup.state // ""), .headRefName, .url]
+        | @tsv' > "${pr_cache_file}.tmp" 2>/dev/null && mv "${pr_cache_file}.tmp" "$pr_cache_file"
+    date +%s > "$pr_timestamp_file"
+}
+
+last_pr_update=$(cat "$pr_timestamp_file" 2>/dev/null || echo 0)
+if (( current_time - last_pr_update > pr_cache_duration )) && mkdir "$pr_lock_dir" 2>/dev/null; then
+    ( refresh_session_prs; rmdir "$pr_lock_dir" ) </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null
+elif [[ -d "$pr_lock_dir" ]] && [[ -n $(find "$pr_lock_dir" -maxdepth 0 -mmin +2 2>/dev/null) ]]; then
+    rmdir "$pr_lock_dir" 2>/dev/null  # stale lock from a killed refresh
+fi
+
+# Render: open PRs first, then drafts, merged, closed. Current branch in bold.
 pr_display=""
-if [[ -n "$git_branch" ]]; then
-    pr_cache_file="$HOME/.claude/pr_cache_$(echo "${current_dir}_${git_branch}" | shasum -a 256 | cut -d' ' -f1)"
-    pr_timestamp_file="${pr_cache_file}_ts"
-    pr_cache_duration=60
-
-    refresh_pr=false
-    if [[ ! -f "$pr_timestamp_file" ]] || [[ ! -f "$pr_cache_file" ]]; then
-        refresh_pr=true
-    else
-        last_pr_update=$(cat "$pr_timestamp_file" 2>/dev/null || echo "0")
-        if (( current_time - last_pr_update > pr_cache_duration )); then
-            refresh_pr=true
+if [[ -s "$pr_cache_file" ]]; then
+    pr_items=()
+    pr_count=0
+    while IFS=$'\t' read -r num state draft review ci head url; do
+        [[ -z "$num" ]] && continue
+        pr_count=$((pr_count + 1))
+        (( pr_count > pr_max_shown )) && continue
+        if [[ "$state" == "MERGED" ]]; then
+            color="\033[35m"; mark="⇲"
+        elif [[ "$state" == "CLOSED" ]]; then
+            color="\033[2m"; mark="⊘"
+        elif [[ "$draft" == "true" ]]; then
+            color="\033[2m"; mark="◐"
+        else
+            case "$ci" in
+                SUCCESS) color="\033[32m"; mark="✓" ;;
+                FAILURE|ERROR) color="\033[31m"; mark="✗" ;;
+                PENDING|EXPECTED) color="\033[33m"; mark="⏳" ;;
+                *) color=""; mark="" ;;
+            esac
         fi
-    fi
+        [[ "$head" == "$git_branch" ]] && color="${color}\033[1m"
+        flag=""
+        [[ "$state" == "OPEN" && "$review" == "CHANGES_REQUESTED" ]] && flag="\033[31m!"
+        pr_items+=("\033]8;;${url}\a${color}#${num}${mark}${flag}\033[0m\033]8;;\a")
+    done < <(awk -F'\t' '{
+            rank = ($2 == "MERGED") ? 2 : ($2 == "CLOSED") ? 3 : ($3 == "true") ? 1 : 0
+            print rank "\t" $0
+        }' "$pr_cache_file" | sort -t$'\t' -k1,1n -k2,2nr | cut -f2-)
 
-    if [[ "$refresh_pr" == "true" ]]; then
-        pr_url=$(cd "$current_dir" && gh pr view --json url -q .url 2>/dev/null || echo "")
-        echo "$pr_url" > "$pr_cache_file"
-        echo "$current_time" > "$pr_timestamp_file"
-    fi
-
-    pr_url=$(cat "$pr_cache_file" 2>/dev/null)
-    if [[ -n "$pr_url" ]]; then
-        pr_number=$(echo "$pr_url" | grep -o '[0-9]*$')
-        pr_display=" | PR#${pr_number}"
+    if (( pr_count > 0 )); then
+        label="PRs"; (( pr_count == 1 )) && label="PR"
+        pr_display=" | ${label} ${pr_items[*]}"
+        (( pr_count > pr_max_shown )) && pr_display+=" \033[2m+$((pr_count - pr_max_shown))\033[0m"
     fi
 fi
 
