@@ -388,10 +388,12 @@ if [[ -n "$seven_day_pct" ]]; then
     if [[ "$seven_day_reset" =~ ^[0-9]+$ ]] && (( seven_day_reset > current_time )); then
         secs_left=$((seven_day_reset - current_time))
         if (( secs_left >= 86400 )); then
-            limits_display="${limits_display} \033[2m↻ $((secs_left / 86400))d\033[0m"
+            left_str="$((secs_left / 86400))d"
         else
-            limits_display="${limits_display} \033[2m↻ $(((secs_left + 3599) / 3600))h\033[0m"
+            left_str="$(((secs_left + 3599) / 3600))h"
         fi
+        reset_when=$(date -r "$seven_day_reset" "+%a %H:%M" 2>/dev/null)
+        limits_display="${limits_display} \033[2m↻ ${left_str}${reset_when:+ · $reset_when}\033[0m"
     fi
 fi
 
