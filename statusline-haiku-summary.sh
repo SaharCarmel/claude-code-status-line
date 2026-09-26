@@ -202,6 +202,9 @@ refresh_session_prs() {
         | [.number, .state, .isDraft, (.reviewDecision // ""),
            (.commits.nodes[0].commit.statusCheckRollup.state // ""), .headRefName, .url]
         | @tsv' > "${pr_cache_file}.tmp" 2>/dev/null && mv "${pr_cache_file}.tmp" "$pr_cache_file"
+    # Claude Code's own footer badge shows the first PR linked to the session;
+    # remember it so the list below does not show that PR a second time.
+    grep -h -m1 '"type":"pr-link"' "$transcript_path" 2>/dev/null | jq -r '.prUrl // empty' > "${pr_cache_file}_badge" 2>/dev/null
     date +%s > "$pr_timestamp_file"
 }
 
@@ -216,10 +219,11 @@ fi
 # Render: open PRs first, then drafts, merged, closed. Current branch in bold.
 pr_display=""
 if [[ -s "$pr_cache_file" ]]; then
+    badge_url=$(cat "${pr_cache_file}_badge" 2>/dev/null)
     pr_items=()
     pr_count=0
     while IFS=$'\t' read -r num state draft review ci head url; do
-        [[ -z "$num" ]] && continue
+        [[ -z "$num" || "$url" == "$badge_url" ]] && continue
         pr_count=$((pr_count + 1))
         (( pr_count > pr_max_shown )) && continue
         if [[ "$state" == "MERGED" ]]; then
