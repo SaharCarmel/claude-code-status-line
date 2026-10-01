@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - ⏱️ Usage limits display: 5-hour session and weekly limits as mini color-coded progress bars (green/yellow/orange/red) with percentage and 5h reset time, from Claude Code's `rate_limits` statusline JSON
 - Session PRs: the status line lists every PR linked to the session (from Claude Code's `pr-link` transcript records, including PRs opened by subagents and workflows) plus the current branch's PR, each as a clickable link with a status mark: ✓ CI passed, ⏳ CI running, ✗ CI failed, ◐ draft, ⇲ merged, ⊘ closed, `!` changes requested. The current branch's PR is bold; at most 5 are shown, then `+N`
+- Session Linear tickets: the status line shows the Linear tickets the session is about, each with its status in Linear's own colour, as a link that opens the Linear desktop app (`linear://`). Tickets are inferred from the transcript and its subagents: the git branch name, tickets the session commented on, updated or created (Linear MCP tools or GraphQL calls), identifiers the user typed, and the tickets Linear links to the session's PRs. The main ticket comes first. Two or more other tickets that share a parent are shown as the parent with `×N`. At most 3 are shown, then `+N`. Needs `LINEAR_API_KEY` in the environment or exported in `~/.zshrc`; refreshed in the background every 2 minutes
 
 ### Changed
 - PR statuses are fetched in the background with one GraphQL call and cached for 60 seconds, so rendering the status line no longer waits on `gh`
