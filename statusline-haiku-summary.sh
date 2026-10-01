@@ -261,7 +261,7 @@ fi
 # tickets Linear links to the session's PRs. linear-session-tickets.py does the
 # scoring, rolls sibling tickets up to their parent, and fetches statuses; it
 # runs in the background and is cached like the PRs. Each ticket is a link that
-# opens the Linear desktop app.
+# opens the ticket (Linear's "Open in desktop app" setting sends it to the app).
 script_dir=$(dirname "$(readlink "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")
 linear_cache_file="$HOME/.claude/session_linear_${session_id}"
 linear_timestamp_file="${linear_cache_file}_ts"

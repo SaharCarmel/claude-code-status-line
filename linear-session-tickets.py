@@ -7,7 +7,7 @@ appears, adds the tickets Linear links to the session's PRs, fetches status and
 parent for the winners in one GraphQL call, and writes one render-ready TSV
 line per ticket to OUT:
 
-    identifier  state  state-color  app-url  child-count  title
+    identifier  state  state-color  url  child-count  title
 
 The highest-scoring ticket is the session's main ticket and is always shown as
 itself. Of the others, two or more that share a parent are rolled up and shown
@@ -242,7 +242,7 @@ def main():
             continue
         seen.add(shown["identifier"])
         rows.append([shown["identifier"], shown["state"]["name"], color(shown["state"]["color"]),
-                     "linear://%s/issue/%s" % (ws["urlKey"], shown["identifier"]), str(count),
+                     shown["url"], str(count),
                      re.sub(r"\s+", " ", shown["title"])])
 
     tmp = out + ".tmp"
