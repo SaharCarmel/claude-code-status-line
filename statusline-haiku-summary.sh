@@ -261,7 +261,8 @@ fi
 # tickets Linear links to the session's PRs. linear-session-tickets.py does the
 # scoring, rolls sibling tickets up to their parent, and fetches statuses; it
 # runs in the background and is cached like the PRs. Each ticket is a link that
-# opens the ticket (Linear's "Open in desktop app" setting sends it to the app).
+# opens the ticket on Cmd+click (Linear's "Open in desktop app" setting sends
+# it to the app).
 script_dir=$(dirname "$(readlink "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")
 linear_cache_file="$HOME/.claude/session_linear_${session_id}"
 linear_timestamp_file="${linear_cache_file}_ts"
@@ -301,7 +302,9 @@ if [[ -s "$linear_cache_file" ]]; then
         rollup=""
         (( children > 0 )) && rollup=" \033[2m×${children}\033[0m"
         [[ -n "$linear_items" ]] && linear_items+=" \033[2m·\033[0m "
-        linear_items+="\033]8;;${url}\a${ident} ${state_color}${state}\033[0m${rollup}\033]8;;\a"
+        # Only the plain, underlined ID is inside the link: colour codes inside
+        # link text can split or drop the link in some renderers
+        linear_items+="\033[4m\033]8;;${url}\a${ident}\033]8;;\a\033[24m ${state_color}${state}\033[0m${rollup}"
     done < "$linear_cache_file"
     if (( linear_count > 0 )); then
         linear_display=" | ${linear_items}"
@@ -468,4 +471,4 @@ if [[ -n "$shortcuts_indicator" ]]; then
     status_line="${status_line} | \033[33m${shortcuts_indicator}\033[0m"
 fi
 
-echo -e "$status_line"
+printf '%b\n' "$status_line"
