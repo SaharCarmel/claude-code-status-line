@@ -256,62 +256,6 @@ if [[ -s "$pr_cache_file" ]]; then
     fi
 fi
 
-# Session Linear tickets: inferred from the transcript (branch names, tickets the
-# session wrote to, created or read, identifiers the user typed) and from the
-# tickets Linear links to the session's PRs. linear-session-tickets.py does the
-# scoring, rolls sibling tickets up to their parent, and fetches statuses; it
-# runs in the background and is cached like the PRs. Each ticket is a link that
-# opens the ticket on Cmd+click (Linear's "Open in desktop app" setting sends
-# it to the app).
-script_dir=$(dirname "$(readlink "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")
-linear_cache_file="$HOME/.claude/session_linear_${session_id}"
-linear_timestamp_file="${linear_cache_file}_ts"
-linear_lock_dir="${linear_cache_file}_lock"
-linear_cache_duration=120
-linear_max_shown=3
-
-last_linear_update=$(cat "$linear_timestamp_file" 2>/dev/null || echo 0)
-if [[ -f "$transcript_path" && -f "$script_dir/linear-session-tickets.py" ]] \
-    && (( current_time - last_linear_update > linear_cache_duration )) && mkdir "$linear_lock_dir" 2>/dev/null; then
-    (
-        pr_args=()
-        while read -r url; do pr_args+=(--pr "$url"); done < <(
-            { cut -f7 "$pr_cache_file"; cat "${pr_cache_file}_badge"; } 2>/dev/null | grep '^https://' | sort -u)
-        /usr/bin/python3 "$script_dir/linear-session-tickets.py" "$transcript_path" "$linear_cache_file" \
-            --branch "$git_branch" "${pr_args[@]}"
-        date +%s > "$linear_timestamp_file"
-        rmdir "$linear_lock_dir"
-    ) </dev/null >/dev/null 2>&1 &
-    disown 2>/dev/null
-elif [[ -d "$linear_lock_dir" ]] && [[ -n $(find "$linear_lock_dir" -maxdepth 0 -mmin +2 2>/dev/null) ]]; then
-    rmdir "$linear_lock_dir" 2>/dev/null  # stale lock from a killed refresh
-fi
-
-# Render: main ticket first; a rolled-up parent shows how many of its children
-# the session touched. The status is drawn in Linear's own colour for it.
-linear_display=""
-if [[ -s "$linear_cache_file" ]]; then
-    linear_items=""
-    linear_count=0
-    while IFS=$'\t' read -r ident state rgb url children title; do
-        [[ -z "$ident" ]] && continue
-        linear_count=$((linear_count + 1))
-        (( linear_count > linear_max_shown )) && continue
-        state_color=""
-        [[ -n "$rgb" ]] && state_color="\033[38;2;${rgb}m"
-        rollup=""
-        (( children > 0 )) && rollup=" \033[2m×${children}\033[0m"
-        [[ -n "$linear_items" ]] && linear_items+=" \033[2m·\033[0m "
-        # Only the plain, underlined ID is inside the link: colour codes inside
-        # link text can split or drop the link in some renderers
-        linear_items+="\033[4m\033]8;;${url}\a${ident}\033]8;;\a\033[24m ${state_color}${state}\033[0m${rollup}"
-    done < "$linear_cache_file"
-    if (( linear_count > 0 )); then
-        linear_display=" | ${linear_items}"
-        (( linear_count > linear_max_shown )) && linear_display+=" \033[2m+$((linear_count - linear_max_shown))\033[0m"
-    fi
-fi
-
 # Project name
 basename=$(basename "$current_dir")
 
@@ -457,7 +401,7 @@ fi
 short_model=$(echo "$model" | sed 's/^Claude //')
 
 # Build the complete status line
-status_line="\033[1;32m➜\033[0m \033[36m${basename}\033[0m${git_info}${pr_display}${linear_display}"
+status_line="\033[1;32m➜\033[0m \033[36m${basename}\033[0m${git_info}${pr_display}"
 status_line="${status_line} | \033[33m${short_model}\033[0m"
 status_line="${status_line} | ${context_info}"
 
